@@ -57,6 +57,10 @@ all: build
 deps:
 	go mod download
 
+.PHONY: run
+run:
+	./bin/queryplan-proxy start
+
 .PHONY: build
 build:
 	go build -a -tags netgo $(BUILD_GO_FLAGS) $(LDFLAGS) -o bin/queryplan-proxy ./cmd/queryplan-proxy
