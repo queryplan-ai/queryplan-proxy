@@ -21,6 +21,7 @@ func StartCmd() *cobra.Command {
 			viper.BindPFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			v := viper.GetViper()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -28,12 +29,19 @@ func StartCmd() *cobra.Command {
 			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 			opts := daemontypes.DaemonOpts{
-				DBMS:        daemontypes.Mysql,
-				BindAddress: "0.0.0.0",
-				BindPort:    3306,
+				APIURL:      v.GetString("api-url"),
+				Token:       v.GetString("token"),
+				Environment: v.GetString("env"),
 
-				UpstreamAddress: "127.0.0.1",
-				UpstreamPort:    3307,
+				LiveConnectionURI: v.GetString("live-connection-uri"),
+				DatabaseName:      v.GetString("database-name"),
+
+				DBMS:        daemontypes.DBMS(v.GetString("dbms")),
+				BindAddress: v.GetString("bind-address"),
+				BindPort:    v.GetInt("bind-port"),
+
+				UpstreamAddress: v.GetString("upstream-address"),
+				UpstreamPort:    v.GetInt("upstream-port"),
 			}
 			go daemon.Run(ctx, opts)
 
@@ -44,6 +52,22 @@ func StartCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().String("token", "", "API token for QueryPlan")
+	cmd.Flags().String("env", "", "Environment name for QueryPlan")
+
+	cmd.Flags().String("api-url", "https://api.queryplan.ai", "URL for QueryPlan API")
+	cmd.Flags().MarkHidden("api-url")
+
+	cmd.Flags().String("live-connection-uri", "", "Live connection URI for the database")
+	cmd.Flags().String("database-name", "", "Name of the database")
+
+	cmd.Flags().String("dbms", "", "DBMS type")
+	cmd.Flags().String("bind-address", "0.0.0.0", "Address to bind the proxy to")
+	cmd.Flags().Int("bind-port", 0, "Port to bind the proxy to")
+
+	cmd.Flags().String("upstream-address", "", "Address of the upstream database")
+	cmd.Flags().Int("upstream-port", 0, "Port of the upstream database")
 
 	return cmd
 }
