@@ -58,7 +58,9 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 		return fmt.Errorf("marshal payload: %v", err)
 	}
 
-	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/v1/schema", opts.APIURL), bytes.NewBuffer(marshaled))
+	url := fmt.Sprintf("%s/v1/schema", opts.APIURL)
+	fmt.Printf("Sending schema to %s\n", url)
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(marshaled))
 	if err != nil {
 		return fmt.Errorf("create request: %v", err)
 	}
