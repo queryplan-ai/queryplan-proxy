@@ -1,5 +1,5 @@
 
-In order to build the proxy side that talks to the website, you need to set the following environment variables:
+In order to build the proxy side that talks to the website, you need to set the following environment variables after creating a MySQL Database:
 
 ```
 export QUERYPLAN_LIVE_CONNECTION_URI=root:password@tcp(localhost:3307)/queryplantst
