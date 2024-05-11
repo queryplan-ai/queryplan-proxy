@@ -6,11 +6,20 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
-	"github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
+	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
 )
 
-func RunProxy(ctx context.Context, opts types.DaemonOpts) {
+const (
+	sendInterval = 10 * time.Second
+)
+
+var (
+	queryRegistry sync.Map
+)
+
+func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
 	address := fmt.Sprintf("%s:%d", opts.BindAddress, opts.BindPort)
 
 	listener, err := net.Listen("tcp", address)
@@ -22,6 +31,19 @@ func RunProxy(ctx context.Context, opts types.DaemonOpts) {
 	upstreamAddress := fmt.Sprintf("%s:%d", opts.UpstreamAddress, opts.UpstreamPort)
 
 	fmt.Printf("Listening on %s, proxying to %s\n", address, upstreamAddress)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(sendInterval):
+				if err := sendPendingQueries(ctx, opts); err != nil {
+					log.Printf("Error sending pending queries: %v", err)
+				}
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -38,7 +60,6 @@ func RunProxy(ctx context.Context, opts types.DaemonOpts) {
 }
 
 func handleMysqlConnection(localConn net.Conn, targetAddress string) {
-	fmt.Printf("Accepted connection from %s\n", localConn.RemoteAddr())
 	targetConn, err := net.Dial("tcp", targetAddress)
 	if err != nil {
 		log.Printf("Failed to connect to target address %s: %v", targetAddress, err)
