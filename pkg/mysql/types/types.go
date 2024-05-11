@@ -11,6 +11,7 @@ type COM_Query_ResponsePacket struct {
 }
 
 type COM_Query_TextResultsetPacket struct {
+	ColumnCount int
 }
 
 type MysqlTable struct {
