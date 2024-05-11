@@ -41,12 +41,21 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 		return fmt.Errorf("list primary keys: %v", err)
 	}
 
+	indexes, err := listIndexes(opts.LiveConnectionURI, opts.DatabaseName)
+	if err != nil {
+		return fmt.Errorf("list indexes: %v", err)
+	}
+
 	for i, table := range tables {
 		if _, ok := primaryKeys[table.TableName]; !ok {
 			primaryKeys[table.TableName] = []string{}
 		}
-
 		tables[i].PrimaryKeys = primaryKeys[table.TableName]
+
+		if _, ok := indexes[table.TableName]; !ok {
+			indexes[table.TableName] = []types.MysqlIndex{}
+		}
+		tables[i].Indexes = indexes[table.TableName]
 	}
 
 	payload := types.QueryPlanTablesPayload{
@@ -146,6 +155,67 @@ WHERE c.TABLE_SCHEMA = ?`, dbName)
 	}
 
 	return tables, nil
+}
+
+func listIndexes(uri string, dbName string) (map[string][]types.MysqlIndex, error) {
+	db, err := GetMysqlConnection(uri)
+	if err != nil {
+		return nil, fmt.Errorf("get mysql connection: %v", err)
+	}
+
+	rows, err := db.Query(`select
+		table_name,
+		index_name,
+		non_unique,
+		group_concat(column_name order by seq_in_index)
+		 from information_schema.statistics
+		 where table_schema = ?
+		 and index_name != 'PRIMARY'
+		 and index_name not in (
+		  select kcu.CONSTRAINT_NAME
+		  from information_schema.KEY_COLUMN_USAGE kcu
+		  inner join information_schema.TABLE_CONSTRAINTS tc
+			on tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+		  inner join information_schema.REFERENTIAL_CONSTRAINTS rc
+			on rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+		  where tc.CONSTRAINT_TYPE = 'FOREIGN KEY'
+		  and kcu.TABLE_SCHEMA = ?
+			)
+		group by 1, 2`, dbName, dbName)
+	if err != nil {
+		return nil, fmt.Errorf("query indexes: %v", err)
+	}
+
+	defer rows.Close()
+
+	indexes := map[string][]types.MysqlIndex{}
+	for rows.Next() {
+		tableName := ""
+		indexName := ""
+		nonUnique := false
+		columns := ""
+		if err := rows.Scan(&tableName, &indexName, &nonUnique, &columns); err != nil {
+			return nil, fmt.Errorf("scan: %v", err)
+		}
+
+		if _, ok := indexes[tableName]; !ok {
+			indexes[tableName] = []types.MysqlIndex{}
+		}
+
+		indexes[tableName] = append(indexes[tableName], types.MysqlIndex{
+			IndexName: indexName,
+			Columns:   []string{},
+			IsUnique:  !nonUnique,
+		})
+
+		for i, index := range indexes[tableName] {
+			if index.IndexName == indexName {
+				indexes[tableName][i].Columns = append(index.Columns, columns)
+			}
+		}
+	}
+
+	return indexes, nil
 }
 
 func listPrimaryKeys(uri string, dbName string) (map[string][]string, error) {

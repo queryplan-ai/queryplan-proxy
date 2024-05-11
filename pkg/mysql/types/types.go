@@ -18,6 +18,13 @@ type MysqlTable struct {
 	Columns           []MysqlColumn `json:"columns"`
 	PrimaryKeys       []string      `json:"primary_keys"`
 	EstimatedRowCount int64         `json:"estimated_row_count"`
+	Indexes           []MysqlIndex  `json:"indexes"`
+}
+
+type MysqlIndex struct {
+	IndexName string   `json:"index_name"`
+	Columns   []string `json:"columns"`
+	IsUnique  bool     `json:"is_unique"`
 }
 
 type MysqlColumn struct {
