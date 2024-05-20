@@ -1,4 +1,4 @@
-package postgres
+package heartbeat
 
 import (
 	"bytes"
@@ -8,16 +8,25 @@ import (
 	"net/http"
 
 	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
+	heartbeattypes "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/ringbuffer"
 )
 
-func sendPendingQueries(ctx context.Context, opts daemontypes.DaemonOpts) error {
+const (
+	defaultMaxPendingQueriesSize = 10000
+)
+
+var (
+	pendingQueries = ringbuffer.New[heartbeattypes.QueryPlanQuery](defaultMaxPendingQueriesSize)
+)
+
+func SendPendingQueries(ctx context.Context, opts daemontypes.DaemonOpts) error {
 	queries := pendingQueries.GetAll()
 	if len(queries) == 0 {
 		return nil
 	}
 
-	payload := types.QueryPlanQueriesPayload{
+	payload := heartbeattypes.QueryPlanQueriesPayload{
 		Queries: queries,
 	}
 
@@ -39,7 +48,7 @@ func sendPendingQueries(ctx context.Context, opts daemontypes.DaemonOpts) error 
 		req.Header.Set("X-QueryPlan-Environment", opts.Environment)
 	}
 
-	req.Header.Set("X-QueryPlan-DBMS", string(daemontypes.Postgres))
+	req.Header.Set("X-QueryPlan-DBMS", string(opts.DBMS))
 	req.Header.Set("X-QueryPlan-Database", opts.DatabaseName)
 
 	client := http.DefaultClient

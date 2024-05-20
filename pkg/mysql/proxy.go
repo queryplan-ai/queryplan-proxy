@@ -6,17 +6,8 @@ import (
 	"log"
 	"net"
 	"sync"
-	"time"
 
 	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
-)
-
-const (
-	sendInterval = 10 * time.Second
-)
-
-var (
-	queryRegistry sync.Map
 )
 
 func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
@@ -31,19 +22,6 @@ func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
 	upstreamAddress := fmt.Sprintf("%s:%d", opts.UpstreamAddress, opts.UpstreamPort)
 
 	fmt.Printf("Listening on %s, proxying to %s\n", address, upstreamAddress)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(sendInterval):
-				if err := sendPendingQueries(ctx, opts); err != nil {
-					log.Printf("Error sending pending queries: %v", err)
-				}
-			}
-		}
-	}()
 
 	for {
 		select {
