@@ -8,12 +8,25 @@ import (
 
 	"github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
 	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/postgres"
 )
 
 func Run(ctx context.Context, opts types.DaemonOpts) {
 	switch opts.DBMS {
 	case types.Postgres:
-		runPostgres(ctx, opts)
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			postgres.ProcessSchema(ctx, opts)
+		}()
+		go func() {
+			defer wg.Done()
+			postgres.RunProxy(ctx, opts)
+		}()
+
+		wg.Wait()
 	case types.Mysql:
 		var wg sync.WaitGroup
 		wg.Add(2)
