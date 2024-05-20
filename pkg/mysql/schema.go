@@ -11,7 +11,7 @@ import (
 	"time"
 
 	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
+	heartbeattypes "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 )
 
 var (
@@ -49,7 +49,7 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 		tables[i].PrimaryKeys = primaryKeys[table.TableName]
 	}
 
-	payload := types.QueryPlanTablesPayload{
+	payload := heartbeattypes.QueryPlanTablesPayload{
 		Tables: tables,
 	}
 
@@ -88,7 +88,7 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 	return nil
 }
 
-func listTables(uri string, dbName string) ([]types.MysqlTable, error) {
+func listTables(uri string, dbName string) ([]heartbeattypes.Table, error) {
 	// read the schema from mysql
 	db, err := GetMysqlConnection(uri)
 	if err != nil {
@@ -107,9 +107,9 @@ WHERE c.TABLE_SCHEMA = ?`, dbName)
 
 	defer rows.Close()
 
-	tables := []types.MysqlTable{}
+	tables := []heartbeattypes.Table{}
 	for rows.Next() {
-		column := types.MysqlColumn{}
+		column := heartbeattypes.Column{}
 
 		tableName := ""
 		estimatedRowCount := int64(0)
@@ -137,9 +137,9 @@ WHERE c.TABLE_SCHEMA = ?`, dbName)
 		}
 
 		if !found {
-			tables = append(tables, types.MysqlTable{
+			tables = append(tables, heartbeattypes.Table{
 				TableName:         tableName,
-				Columns:           []types.MysqlColumn{column},
+				Columns:           []heartbeattypes.Column{column},
 				EstimatedRowCount: estimatedRowCount,
 			})
 		}

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/postgres/types"
+	heartbeattypes "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 )
 
 var (
@@ -50,7 +50,7 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 		tables[i].PrimaryKeys = primaryKeys[table.TableName]
 	}
 
-	payload := types.QueryPlanTablesPayload{
+	payload := heartbeattypes.QueryPlanTablesPayload{
 		Tables: tables,
 	}
 
@@ -89,7 +89,7 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 	return nil
 }
 
-func listTables(uri string, dbName string) ([]types.PostgresTable, error) {
+func listTables(uri string, dbName string) ([]heartbeattypes.Table, error) {
 	// read the schema from postgres
 	db, err := GetPostgresConnection(uri)
 	if err != nil {
@@ -114,7 +114,7 @@ func listTables(uri string, dbName string) ([]types.PostgresTable, error) {
 
 	rows.Close()
 
-	tables := []types.PostgresTable{}
+	tables := []heartbeattypes.Table{}
 	for _, tableName := range tableNames {
 		rows, err = db.Query(context.TODO(), `select column_name, data_type, character_maximum_length, column_default, is_nullable from information_schema.columns where table_name = $1 and table_catalog = $2`, tableName, dbName)
 		if err != nil {
@@ -123,7 +123,7 @@ func listTables(uri string, dbName string) ([]types.PostgresTable, error) {
 
 		defer rows.Close()
 		for rows.Next() {
-			column := types.PostgresColumn{}
+			column := heartbeattypes.Column{}
 
 			var maxLength sql.NullInt64
 			var isNullable string
@@ -158,9 +158,9 @@ func listTables(uri string, dbName string) ([]types.PostgresTable, error) {
 			}
 
 			if !found {
-				tables = append(tables, types.PostgresTable{
+				tables = append(tables, heartbeattypes.Table{
 					TableName: tableName,
-					Columns:   []types.PostgresColumn{column},
+					Columns:   []heartbeattypes.Column{column},
 				})
 			}
 		}

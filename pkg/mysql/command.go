@@ -6,9 +6,8 @@ import (
 	"log"
 	"net"
 	"strings"
-	"time"
 
-	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
 )
 
 var (
@@ -39,11 +38,7 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 				if err != nil {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
-					qpq := types.QueryPlanQuery{
-						Query:      cleanedQuery,
-						ExecutedAt: time.Now().UnixNano(),
-					}
-					pendingQueries.Add(qpq)
+					heartbeat.AddPendingQuery(cleanedQuery)
 				}
 			}
 		}
