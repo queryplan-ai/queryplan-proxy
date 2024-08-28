@@ -21,7 +21,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - name: queryplan-proxy
-              containerPort: 3000
+              containerPort: 3306
           envFrom:
             - secretRef:
                 name: queryplan-proxy
@@ -36,5 +36,5 @@ spec:
     app: queryplan-proxy
   ports:
     - name: queryplan-proxy
-      port: 3000
-      targetPort: 3000
+      port: 3306
+      targetPort: 3306
