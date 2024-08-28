@@ -18,7 +18,3 @@ dev:
     workdir: /go/src/github.com/queryplan-ai/queryplan-proxy
     sync:
       - ./:/go/src/github.com/queryplan-ai/queryplan-proxy
-    resources:
-      limits:
-        cpu: "2"
-        memory: 4Gi
