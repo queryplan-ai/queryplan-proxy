@@ -2,7 +2,7 @@
 build:
   queryplan-proxy:
     context: .
-    dockerfile: ./docker/okteto.Dockerfile
+    dockerfile: ./okteto/okteto.Dockerfile
 
 
 deploy:
