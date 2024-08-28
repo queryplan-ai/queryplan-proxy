@@ -26,3 +26,15 @@ spec:
             - secretRef:
                 name: queryplan-proxy
  
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: queryplan-proxy
+spec:
+  selector:
+    app: queryplan-proxy
+  ports:
+    - name: queryplan-proxy
+      port: 3000
+      targetPort: 3000
