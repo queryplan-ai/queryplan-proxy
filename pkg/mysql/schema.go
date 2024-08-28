@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -59,7 +60,6 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 	}
 
 	url := fmt.Sprintf("%s/v1/schema", opts.APIURL)
-	fmt.Printf("Sending schema to %s\n", url)
 	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(marshaled))
 	if err != nil {
 		return fmt.Errorf("create request: %v", err)
@@ -82,7 +82,13 @@ func collectAndSendSchema(ctx context.Context, opts daemontypes.DaemonOpts) erro
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		// try to read the body
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("read body: %v", err)
+		}
+
+		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	return nil
