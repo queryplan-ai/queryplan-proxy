@@ -39,7 +39,11 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
 					heartbeat.AddPendingQuery(cleanedQuery)
+					// Print the query to the console
+					fmt.Printf("Received Query: %s\n", cleanedQuery)
 				}
+			} else {
+				log.Printf("Error extracting query: %v", err)
 			}
 		}
 

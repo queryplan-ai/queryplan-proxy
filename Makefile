@@ -82,4 +82,8 @@ vet:
 test: vet
 	go test ./pkg/... ./cmd/...
 
-
+.PHONY: pre-dev
+pre-dev:
+	@go mod download -x
+	@make build
+	@printf "\n\n To build and run this project, run: \n\n   # make build run\n\n"

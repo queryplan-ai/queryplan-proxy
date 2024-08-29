@@ -14,7 +14,7 @@ deploy:
 
 dev:
   queryplan-proxy:
-    command: bash
+    command: make pre-dev && bash || bash
     workdir: /go/src/github.com/queryplan-ai/queryplan-proxy
     sync:
       - ./:/go/src/github.com/queryplan-ai/queryplan-proxy
