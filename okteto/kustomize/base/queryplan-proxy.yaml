@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queryplan-proxy
+spec:
+  selector:
+    matchLabels:
+      app: queryplan-proxy
+  template:
+    metadata:
+      labels:
+        app: queryplan-proxy
+    spec:
+      containers:
+        - name: queryplan-proxy
+          resources:
+            requests:
+              cpu: 250m
+              memory: 300Mi
+          image: queryplan-proxy
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: queryplan-proxy
+              containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: queryplan-proxy
+ 
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: queryplan-proxy
+spec:
+  selector:
+    app: queryplan-proxy
+  ports:
+    - name: queryplan-proxy
+      port: 3306
+      targetPort: 3306

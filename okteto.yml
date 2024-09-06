@@ -1,0 +1,20 @@
+
+build:
+  queryplan-proxy:
+    context: .
+    dockerfile: ./okteto/okteto.Dockerfile
+
+
+deploy:
+  - cd okteto/kustomize/overlays/dev && kustomize edit set image queryplan-proxy=${OKTETO_BUILD_QUERYPLAN_PROXY_IMAGE}
+
+  - kustomize build okteto/kustomize/overlays/dev
+
+  - kubectl apply -k okteto/kustomize/overlays/dev 
+
+dev:
+  queryplan-proxy:
+    command: make pre-dev && bash || bash
+    workdir: /go/src/github.com/queryplan-ai/queryplan-proxy
+    sync:
+      - ./:/go/src/github.com/queryplan-ai/queryplan-proxy
