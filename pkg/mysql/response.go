@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net"
 
 	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
@@ -46,7 +45,7 @@ func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
 				packetsReceived++
 			}
 
-			log.Printf("Packet: %#v", resultSetPacket)
+			// log.Printf("Packet: %#v", resultSetPacket)
 		}
 	}
 	return nil
@@ -69,6 +68,22 @@ func isFullPacket(buffer *bytes.Buffer) (bool, int) {
 func parseFullResponsePacket(packetData []byte, packetsReceived int, resultSetPacket *types.COM_Query_TextResultsetPacket) error {
 	if len(packetData) < 1 {
 		return fmt.Errorf("packet is too short to determine type")
+	}
+
+	if packetsReceived == 0 {
+		if packetData[0] == 0x00 {
+			// This is the first response packet, indicating success and containing the statement ID.
+			if len(packetData) >= 5 {
+				// Extract the statement ID (bytes 1-4, little-endian).
+				stmtID := uint32(packetData[1]) | uint32(packetData[2])<<8 | uint32(packetData[3])<<16 | uint32(packetData[4])<<24
+				fmt.Printf("Prepared statement ID: %d\n", stmtID)
+
+				// Here you would store the statement ID in your prepared statement tracking map.
+				// preparedStatements[stmtID] = <Your stored prepared query>
+			} else {
+				return fmt.Errorf("COM_STMT_PREPARE response too short to contain statement ID")
+			}
+		}
 	}
 
 	switch packetsReceived {
