@@ -66,6 +66,7 @@ func isFullPacket(buffer *bytes.Buffer) (bool, int) {
 }
 
 func parseFullResponsePacket(packetData []byte, packetsReceived int, resultSetPacket *types.COM_Query_TextResultsetPacket) error {
+	fmt.Printf("received a full packet: %v\n", packetData)
 	if len(packetData) < 1 {
 		return fmt.Errorf("packet is too short to determine type")
 	}
