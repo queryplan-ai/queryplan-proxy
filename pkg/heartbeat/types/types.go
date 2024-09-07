@@ -9,9 +9,10 @@ type QueryPlanTablesResponse struct {
 }
 
 type QueryPlanQuery struct {
-	ExecutedAt int64  `json:"executed_at"`
-	Duration   int64  `json:"duration"`
-	Query      string `json:"query"`
+	ExecutedAt          int64  `json:"executed_at"`
+	Duration            int64  `json:"duration"`
+	Query               string `json:"query"`
+	IsPreparedStatement bool   `json:"is_prepared_statement"`
 
 	// Callstack?
 }

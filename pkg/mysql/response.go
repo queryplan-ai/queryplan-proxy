@@ -16,9 +16,9 @@ func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
 		n, err := src.Read(data)
 		if err != nil {
 			if err != io.EOF {
-				return err // Handle read error
+				return err
 			}
-			break // EOF reached, stop reading
+			break
 		}
 
 		if _, err := dst.Write(data[:n]); err != nil {
@@ -66,31 +66,39 @@ func isFullPacket(buffer *bytes.Buffer) (bool, int) {
 }
 
 func parseFullResponsePacket(packetData []byte, packetsReceived int, resultSetPacket *types.COM_Query_TextResultsetPacket) error {
-	fmt.Printf("received a full packet: %v\n", packetData)
-	if len(packetData) < 1 {
+	if len(packetData) < 5 { // 4 bytes header + at least 1 byte payload
 		return fmt.Errorf("packet is too short to determine type")
 	}
 
-	if packetsReceived == 0 {
-		if packetData[0] == 0x00 {
-			// This is the first response packet, indicating success and containing the statement ID.
-			if len(packetData) >= 5 {
-				// Extract the statement ID (bytes 1-4, little-endian).
-				stmtID := uint32(packetData[1]) | uint32(packetData[2])<<8 | uint32(packetData[3])<<16 | uint32(packetData[4])<<24
-				fmt.Printf("Prepared statement ID: %d\n", stmtID)
+	// The payload starts at index 4
+	payloadStartIndex := 4
+	packetType := packetData[payloadStartIndex]
 
-				// Here you would store the statement ID in your prepared statement tracking map.
-				// preparedStatements[stmtID] = <Your stored prepared query>
-			} else {
-				return fmt.Errorf("COM_STMT_PREPARE response too short to contain statement ID")
+	switch packetType {
+	case 0x00:
+		if packetsReceived == 0 && len(packetData) >= 9 { // 4 byte header + 5 bytes minimum for stmt ID
+			// This could be a prepared statement response
+			stmtID := uint32(packetData[5]) | uint32(packetData[6])<<8 | uint32(packetData[7])<<16 | uint32(packetData[8])<<24
+
+			// hmm, for now, we find the prepared statement with an id of -1 and assign to this
+			for _, ps := range preparedStatements.GetAll() {
+				if ps.ID == -1 {
+					ps.ID = int(stmtID)
+					break
+				}
 			}
 		}
-	}
-
-	switch packetsReceived {
-	case 0:
-		colCount, _, _ := lenDecInt(packetData)
-		resultSetPacket.ColumnCount = int(colCount)
+	case 0xFB:
+		fmt.Println("LOCAL INFILE packet received")
+	case 0xFF:
+		fmt.Println("Error packet received")
+	default:
+		// Likely the start of a result set
+		if packetsReceived == 0 {
+			colCount, _, _ := lenDecInt(packetData[payloadStartIndex:])
+			resultSetPacket.ColumnCount = int(colCount)
+			// fmt.Printf("Result set with %d columns\n", colCount)
+		}
 	}
 
 	return nil

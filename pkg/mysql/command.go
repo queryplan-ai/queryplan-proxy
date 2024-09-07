@@ -25,7 +25,7 @@ type PreparedStatement struct {
 }
 
 var (
-	preparedStatements = ringbuffer.New[PreparedStatement](1000)
+	preparedStatements = ringbuffer.New[*PreparedStatement](1000)
 )
 
 const (
@@ -62,13 +62,13 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 
 		data := buffer[:n]
 		if inspect {
-			query, err := extractQuery(data)
+			query, isPreparedStatement, err := extractQuery(data)
 			if err == nil {
 				cleanedQuery, err := cleanQuery(query)
 				if err != nil {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
-					heartbeat.AddPendingQuery(cleanedQuery)
+					heartbeat.AddPendingQuery(cleanedQuery, isPreparedStatement)
 				}
 			} else {
 				if errors.Cause(err) != ErrNonQueryData {
@@ -86,45 +86,47 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 
 // extractQuery returns the query and an id we can use to map it later
 // the id is deterministic
-func extractQuery(data []byte) (string, error) {
+// the bool indicates if the query is a prepared statement
+func extractQuery(data []byte) (string, bool, error) {
 	if len(data) < 5 {
-		return "", ErrNonQueryDataOrIncompletePacket
+		return "", false, ErrNonQueryDataOrIncompletePacket
 	}
 
 	switch data[4] {
 	case COM_QUERY:
-		return strings.TrimSpace(string(data[5:])), nil
+		return strings.TrimSpace(string(data[5:])), false, nil
 	case COM_STMT_PREPARE:
 		query := strings.TrimSpace(string(data[5:]))
-		preparedStatements.Add(PreparedStatement{
+		preparedStatements.Add(&PreparedStatement{
 			ID:    -1, // we don't have the ID yet, we will find this in the response protocol from the server
 			Query: query,
 		})
-		return query, nil // really this should be after we find the statement in COM_STMT_EXECUTE
+		return "", false, ErrNonQueryData // really this should be after we find the statement in COM_STMT_EXECUTE
 	case COM_STMT_EXECUTE:
 		// find the prepared statement with the same id, log that this query was executed
 		if len(data) < 9 {
-			return "", ErrNonQueryDataOrIncompletePacket
+			return "", false, ErrNonQueryDataOrIncompletePacket
 		}
 		stmtID := binary.LittleEndian.Uint32(data[5:9])
 		for _, ps := range preparedStatements.GetAll() {
 			if ps.ID == int(stmtID) {
 				// we don't have a function to remove an item from our ringbuffer
 				// so we let it expire
-				return ps.Query, nil
+				fmt.Printf("Found prepared statement with ID %d\n", ps.ID)
+				return ps.Query, true, nil
 			}
 		}
 
-		// fmt.Printf("Unknown prepared statement ID: %v\n", stmtID)
-		return "", ErrUnknownPreparedStatement
+		fmt.Printf("Unknown prepared statement ID: %v\n", stmtID)
+		return "", false, ErrUnknownPreparedStatement
 
 	case COM_QUIT, COM_INIT_DB, COM_FIELD_LIST, COM_CREATE_DB,
 		COM_DROP_DB, COM_REFRESH, COM_STATISTICS, COM_PROCESS_INFO,
 		COM_CONNECT, COM_PROCESS_KILL, COM_DEBUG, COM_PING,
 		COM_CHANGE_USER, COM_RESET_CONNECTION, COM_STMT_CLOSE:
-		return "", ErrNonQueryData
+		return "", false, ErrNonQueryData
 	}
 
-	fmt.Printf("Unknown command: %v\n", data[4])
-	return "", ErrNonQueryData
+	// fmt.Printf("Unknown command: %v\n", data[4])
+	return "", false, ErrNonQueryData
 }

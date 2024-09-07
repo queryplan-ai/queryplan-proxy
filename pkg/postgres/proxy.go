@@ -87,7 +87,7 @@ func (w *loggingWriter) Write(p []byte) (n int, err error) {
 			if err != nil {
 				log.Printf("Error cleaning query: %v", err)
 			} else {
-				heartbeat.AddPendingQuery(cleanedQuery)
+				heartbeat.AddPendingQuery(cleanedQuery, false)
 			}
 		}
 	}

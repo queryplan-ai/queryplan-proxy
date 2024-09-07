@@ -7,15 +7,16 @@ import (
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 )
 
-func AddPendingQuery(query string) {
+func AddPendingQuery(query string, isPreparedStatement bool) {
 	// some queries we filter here
 	if isFilteredQuery(query) {
 		return
 	}
 
 	qpq := types.QueryPlanQuery{
-		Query:      query,
-		ExecutedAt: time.Now().UnixNano(),
+		Query:               query,
+		ExecutedAt:          time.Now().UnixNano(),
+		IsPreparedStatement: isPreparedStatement,
 	}
 
 	pendingQueries.Add(qpq)
@@ -26,7 +27,7 @@ func isFilteredQuery(query string) bool {
 		return true
 	}
 
-	if strings.ToLower(query) == "begin transaction" {
+	if strings.ToLower(query) == "start transaction" {
 		return true
 	}
 
