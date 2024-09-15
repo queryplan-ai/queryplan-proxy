@@ -1,0 +1,12 @@
+{
+  "name": "queryplan-proxy",
+  "sdk": "go",
+  "dependencies": [
+    {
+      "name": "wolfi",
+      "source": "github.com/dagger/dagger/modules/wolfi@e92f5a44e359341c0ef0eab09bf7391678295033"
+    }
+  ],
+  "source": "dagger",
+  "engineVersion": "v0.12.5"
+}
