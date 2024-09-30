@@ -1,0 +1,6 @@
+apiVersion: v2
+name: queryplan-proxy
+description: A helm chart to deploy the queryplan-proxy application
+type: application
+version: 0.0.1
+appVersion: "0.0.1"

@@ -87,3 +87,11 @@ pre-dev:
 	@go mod download -x
 	@make build
 	@printf "\n\n To build and run this project, run: \n\n   # make build run\n\n"
+
+.PHONY: release
+release:
+	dagger call release \
+		--version $(version) \
+		--username marccampbell \
+		--token env:GITHUB_API_TOKEN \
+		--progress plain
