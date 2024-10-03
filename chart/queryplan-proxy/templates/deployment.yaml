@@ -17,11 +17,19 @@ spec:
             requests:
               cpu: 250m
               memory: 300Mi
-          image: queryplan-proxy
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: IfNotPresent
           ports:
             - name: queryplan-proxy
-              containerPort: 3306
+              containerPort: {{ .Values.connection.bindPort }}
           envFrom:
             - secretRef:
                 name: queryplan-proxy
+          {{- if .Values.connection.useSecret }}
+          env:
+            - name: QUERYPLAN_LIVE_CONNECTION_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.connection.secretName }}
+                  key: {{ .Values.connection.secretKey }}
+          {{- end }}

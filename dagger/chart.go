@@ -18,5 +18,8 @@ func buildChart(ctx context.Context, source *dagger.Directory, version string) *
 	chart := container.WithExec([]string{"sed", "-i", fmt.Sprintf("s/version: .*/version: %s/", version), "/chart/Chart.yaml"})
 	chart = chart.WithExec([]string{"sed", "-i", fmt.Sprintf("s/appVersion: .*/appVersion: %s/", version), "/chart/Chart.yaml"})
 
+	// replace the tag in in the values.yaml
+	chart = chart.WithExec([]string{"sed", "-i", fmt.Sprintf("s/tag: .*/tag: %s/", version), "/chart/values.yaml"})
+
 	return chart
 }

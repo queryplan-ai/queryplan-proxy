@@ -1,6 +1,23 @@
+engine: mysql
 
+connection:
+  # If set to true, liveUri, token, and other sensitive values will be fetched from an existing secret
+  useSecret: false
+  secretName: "" # Name of the existing secret
+  secretKey: "" # Key in the secret for liveUri
+
+  liveUri: "" # Can be set directly or from the secret
+  databaseName:
+  bindAddress: 0.0.0.0
+  bindPort: 3306
+  upstreamAddress: ""
+  upstreamPort: ""
+  apiUrl: https://api.queryplan.ai
+
+token: ""
+
+environment: "helm"
 image:
-  repository: nginx
+  repository:  ghcr.io/queryplan-ai/queryplan-proxy
   pullPolicy: IfNotPresent
-  tag: ""
-
+  tag: "0.0.1"
