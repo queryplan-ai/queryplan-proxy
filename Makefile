@@ -65,10 +65,6 @@ run:
 build:
 	go build -a -tags netgo $(BUILD_GO_FLAGS) $(LDFLAGS) -o bin/queryplan-proxy ./cmd/queryplan-proxy
 
-.PHONY: release
-release:
-	go build -a -tags netgo $(BUILD_GO_FLAGS) $(LDFLAGS_RELEASE) -o bin/queryplan-proxy ./cmd/queryplan-proxy
-
 
 .PHONY: fmt
 fmt:

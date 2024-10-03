@@ -50,14 +50,16 @@ func (q *QueryplanProxy) Release(
 	releases = append(releases, latestRelease)
 
 	chart := buildChart(ctx, source, version)
-	chartRelease, err := chart.
+	chartArchive := chart.
 		WithExec([]string{"helm", "package", "/chart"}).
-		WithRegistryAuth("ghcr.io", username, token).
-		Publish(ctx, fmt.Sprintf("ghcr.io/queryplan-ai/queryplan-proxy-chart:%s", version))
+		File(fmt.Sprintf("/apps/queryplan-proxy-chart-%s.tgz", version))
 	if err != nil {
 		return nil, err
 	}
-	releases = append(releases, chartRelease)
+	err = publishChart(ctx, chartArchive, version, username, token)
+	if err != nil {
+		return nil, err
+	}
 
 	return releases, nil
 }

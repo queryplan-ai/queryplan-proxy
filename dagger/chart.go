@@ -23,3 +23,48 @@ func buildChart(ctx context.Context, source *dagger.Directory, version string) *
 
 	return chart
 }
+
+func publishChart(ctx context.Context, chartArchive *dagger.File, version string, username string, token *dagger.Secret) error {
+	container := dag.Container(dagger.ContainerOpts{
+		Platform: dagger.Platform("linux/amd64"),
+	}).From("alpine/helm:3.16.1")
+
+	// add the chart to the container
+	container = container.WithFile("/chart.tgz", chartArchive)
+
+	tokenPlaintext, _ := token.Plaintext(ctx)
+
+	// exec to log in to the oci registry and publish
+	c := container.
+		WithExec([]string{
+			"helm",
+			"registry",
+			"login",
+			"ghcr.io",
+			"--username",
+			username,
+			"--password",
+			tokenPlaintext,
+		}).
+		WithExec([]string{
+			"helm",
+			"push",
+			"/chart.tgz",
+			"oci://ghcr.io/queryplan-ai",
+		})
+
+	stdout, err := c.Stdout(ctx)
+	if err != nil {
+		return err
+	}
+
+	stderr, err := c.Stderr(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("stdout: %s\n", stdout)
+	fmt.Printf("stderr: %s\n", stderr)
+
+	return nil
+}
