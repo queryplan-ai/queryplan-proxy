@@ -87,7 +87,9 @@ func (q *QueryplanProxy) buildEnv(ctx context.Context, source *dagger.Directory)
 
 func (q *QueryplanProxy) releaseEnv(ctx context.Context, binaryFile *dagger.File) *dagger.Container {
 	releaseContainer := dag.Wolfi().
-		Container().
+		Container(dagger.WolfiContainerOpts{
+			Arch: "amd64",
+		}).
 		WithFile("/queryplan-proxy", binaryFile)
 
 	return releaseContainer
