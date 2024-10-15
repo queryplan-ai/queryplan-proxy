@@ -38,10 +38,10 @@ func StartCmd() *cobra.Command {
 
 				DBMS:        daemontypes.DBMS(v.GetString("dbms")),
 				BindAddress: v.GetString("bind-address"),
-				BindPort:    v.GetInt("bind-port"),
+				BindPort:    v.GetFloat64("bind-port"),
 
 				UpstreamAddress: v.GetString("upstream-address"),
-				UpstreamPort:    v.GetInt("upstream-port"),
+				UpstreamPort:    v.GetFloat64("upstream-port"),
 			}
 			go daemon.Run(ctx, opts)
 

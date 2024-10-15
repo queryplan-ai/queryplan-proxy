@@ -11,17 +11,16 @@ import (
 )
 
 func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
-	address := fmt.Sprintf("%s:%d", opts.BindAddress, opts.BindPort)
+	address := fmt.Sprintf("%s:%v", opts.BindAddress, opts.BindPort)
+	upstreamAddress := fmt.Sprintf("%s:%v", opts.UpstreamAddress, opts.UpstreamPort)
+
+	fmt.Printf("Listening on %s, proxying to %s\n", address, upstreamAddress)
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		panic(err)
 	}
 	defer listener.Close()
-
-	upstreamAddress := fmt.Sprintf("%s:%d", opts.UpstreamAddress, opts.UpstreamPort)
-
-	fmt.Printf("Listening on %s, proxying to %s\n", address, upstreamAddress)
 
 	for {
 		select {

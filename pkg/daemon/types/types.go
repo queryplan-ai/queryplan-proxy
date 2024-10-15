@@ -18,8 +18,8 @@ type DaemonOpts struct {
 	DatabaseName      string
 
 	BindAddress string
-	BindPort    int
+	BindPort    float64
 
 	UpstreamAddress string
-	UpstreamPort    int
+	UpstreamPort    float64
 }

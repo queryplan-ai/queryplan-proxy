@@ -86,10 +86,12 @@ func (q *QueryplanProxy) buildEnv(ctx context.Context, source *dagger.Directory)
 }
 
 func (q *QueryplanProxy) releaseEnv(ctx context.Context, binaryFile *dagger.File) *dagger.Container {
-	releaseContainer := dag.Wolfi().
-		Container(dagger.WolfiContainerOpts{
-			Arch: "amd64",
-		}).
+	releaseContainer := dag.Container(dagger.ContainerOpts{
+		Platform: dagger.Platform("linux/amd64"),
+	}).From("debian:bullseye-slim").
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "ca-certificates"}).
+		WithExec([]string{"rm", "-rf", "/var/lib/apt/lists/*"}).
 		WithFile("/queryplan-proxy", binaryFile)
 
 	return releaseContainer

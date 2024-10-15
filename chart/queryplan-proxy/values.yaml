@@ -8,7 +8,7 @@ connection:
 
   liveUri: "" # Can be set directly or from the secret
   databaseName:
-  bindAddress: 0.0.0.0
+  bindAddress: "0.0.0.0"
   bindPort: 3306
   upstreamAddress: ""
   upstreamPort: ""
