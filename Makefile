@@ -89,5 +89,5 @@ release:
 	dagger call release \
 		--version $(version) \
 		--username marccampbell \
-		--token env:GITHUB_API_TOKEN \
+		--github-token env:GITHUB_TOKEN \
 		--progress plain

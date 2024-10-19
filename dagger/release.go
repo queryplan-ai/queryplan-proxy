@@ -14,57 +14,101 @@ func (q *QueryplanProxy) Release(
 
 	version string,
 	username string,
-	token *dagger.Secret,
-) ([]string, error) {
-	container := q.buildEnv(ctx, source)
+	githubToken *dagger.Secret,
+) error {
+	latestVersion, newVersion, err := determineVersions(ctx, version)
+	if err != nil {
+		return err
+	}
 
+	fmt.Printf("Releasing %s -> %s\n", latestVersion, newVersion)
+
+	// push the tag
+	githubTokenPlaintext, err := githubToken.Plaintext(ctx)
+	if err != nil {
+		return err
+	}
+	tagContainer := dag.Container().
+		From("alpine/git:latest").
+		WithMountedDirectory("/go/src/github.com/queryplan-ai/queryplan-proxy", source).
+		WithWorkdir("/go/src/github.com/queryplan-ai/queryplan-proxy").
+		WithExec([]string{"git", "remote", "add", "tag", fmt.Sprintf("https://%s@github.com/queryplan-ai/queryplan-proxy.git", githubTokenPlaintext)}).
+		WithExec([]string{"git", "tag", newVersion}).
+		WithExec([]string{"git", "push", "tag", newVersion})
+	_, err = tagContainer.Stdout(ctx)
+	if err != nil {
+		return err
+	}
+
+	// store all release assets for the github release
+	releaseAssets := []*dagger.File{}
+
+	// update the source with the tag so that our git history later has it
+	source = tagContainer.Directory("/go/src/github.com/queryplan-ai/queryplan-proxy")
+
+	container := buildEnv(ctx, source)
 	binary := container.
 		WithExec([]string{"make", "build"}).
 		File("/go/src/github.com/queryplan-ai/queryplan-proxy/bin/queryplan-proxy")
+	releaseAssets = append(releaseAssets, binary)
 
-	// build the release container with the binary in it
-	releaseContainer := q.releaseEnv(ctx, binary)
+	releaseContainer := dag.Container(dagger.ContainerOpts{
+		Platform: dagger.Platform("linux/amd64"),
+	}).From("debian:bullseye-slim").
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "ca-certificates"}).
+		WithExec([]string{"rm", "-rf", "/var/lib/apt/lists/*"}).
+		WithFile("/queryplan-proxy", binary)
 	releaseContainer = releaseContainer.WithEntrypoint([]string{
 		"/queryplan-proxy",
-	})
-	releaseContainer = releaseContainer.WithDefaultArgs([]string{
+	}).WithDefaultArgs([]string{
 		"start",
 	})
 
-	releases := []string{}
-
-	tagRelease, err := releaseContainer.
-		WithRegistryAuth("ghcr.io", username, token).
-		Publish(ctx, fmt.Sprintf("ghcr.io/queryplan-ai/queryplan-proxy:%s", version))
+	_, err = releaseContainer.
+		WithRegistryAuth("ghcr.io", username, githubToken).
+		Publish(ctx, fmt.Sprintf("ghcr.io/queryplan-ai/queryplan-proxy:%s", newVersion))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	releases = append(releases, tagRelease)
 
-	latestRelease, err := releaseContainer.
-		WithRegistryAuth("ghcr.io", username, token).
+	_, err = releaseContainer.
+		WithRegistryAuth("ghcr.io", username, githubToken).
 		Publish(ctx, "ghcr.io/queryplan-ai/queryplan-proxy:latest")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	releases = append(releases, latestRelease)
 
-	chart := buildChart(ctx, source, version)
-	chartArchive := chart.
+	chartContainer := buildChart(ctx, source, newVersion)
+	chartArchive := chartContainer.
 		WithExec([]string{"helm", "package", "/chart"}).
-		File(fmt.Sprintf("/apps/queryplan-proxy-chart-%s.tgz", version))
+		File(fmt.Sprintf("/apps/queryplan-proxy-chart-%s.tgz", newVersion))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = publishChart(ctx, chartArchive, version, username, token)
+	releaseAssets = append(releaseAssets, chartArchive)
+
+	err = publishChart(ctx, chartArchive, newVersion, username, githubToken)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return releases, nil
+	// create a release on github
+	if err := dag.Gh().
+		WithToken(githubToken).
+		WithRepo("queryplan-ai/queryplan-proxy").
+		WithSource(source).
+		Release().
+		Create(ctx, newVersion, newVersion, dagger.GhReleaseCreateOpts{
+			Files: releaseAssets,
+		}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (q *QueryplanProxy) buildEnv(ctx context.Context, source *dagger.Directory) *dagger.Container {
+func buildEnv(ctx context.Context, source *dagger.Directory) *dagger.Container {
 	// exclude some directories
 	source = source.WithoutDirectory("dagger")
 	source = source.WithoutDirectory("okteto")
@@ -83,16 +127,4 @@ func (q *QueryplanProxy) buildEnv(ctx context.Context, source *dagger.Directory)
 		WithMountedCache("/go/build-cache", cache).
 		WithEnvVariable("GOCACHE", "/go/build-cache").
 		WithExec([]string{"go", "mod", "download"})
-}
-
-func (q *QueryplanProxy) releaseEnv(ctx context.Context, binaryFile *dagger.File) *dagger.Container {
-	releaseContainer := dag.Container(dagger.ContainerOpts{
-		Platform: dagger.Platform("linux/amd64"),
-	}).From("debian:bullseye-slim").
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{"apt-get", "install", "-y", "ca-certificates"}).
-		WithExec([]string{"rm", "-rf", "/var/lib/apt/lists/*"}).
-		WithFile("/queryplan-proxy", binaryFile)
-
-	return releaseContainer
 }
