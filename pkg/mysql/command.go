@@ -81,6 +81,7 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
