@@ -3,12 +3,11 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net"
+	"sync"
 
 	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
 )
 
 func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
@@ -37,59 +36,32 @@ func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
 	}
 }
 
-func handlePostgresConnection(localConn net.Conn, upstreamAddress string) {
-	upstreamConn, err := net.Dial("tcp", upstreamAddress)
+func handlePostgresConnection(localConn net.Conn, targetAddress string) {
+	targetConn, err := net.Dial("tcp", targetAddress)
 	if err != nil {
-		panic(err)
+		log.Printf("Failed to connect to target address %s: %v", targetAddress, err)
+		localConn.Close()
+		return
 	}
-	defer upstreamConn.Close()
 
-	// Create TeeReaders to log the data while forwarding it
-	localReader := io.TeeReader(localConn, newLoggingWriter("Client -> Server"))
-	upstreamReader := io.TeeReader(upstreamConn, newLoggingWriter("Server -> Client"))
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	go func() {
-		defer localConn.Close()
-		io.Copy(upstreamConn, localReader)
+		defer wg.Done()
+		if err := copyAndInspectCommand(localConn, targetConn, true); err != nil {
+			log.Printf("Error in data transfer from local to target: %v", err)
+		}
 	}()
 
-	io.Copy(localConn, upstreamReader)
-}
-
-// loggingWriter is an io.Writer that logs the data written to it.
-type loggingWriter struct {
-	prefix string
-}
-
-func newLoggingWriter(prefix string) *loggingWriter {
-	return &loggingWriter{prefix: prefix}
-}
-
-func (w *loggingWriter) Write(p []byte) (n int, err error) {
-	// copy into a buffer
-	buf := make([]byte, len(p))
-	copy(buf, p)
-
-	// look at the first byte
-	if len(buf) > 0 {
-		// if the first char is a Q it's a query
-		if buf[0] == 'Q' {
-			// print the query, which starts at the 3rd byte
-			// this is far too niaive, but it's a start
-			// and cannot by shipped because it's
-			// very incomplete
-			query := string(buf[5:])
-			// remove the last null byte
-			query = query[:len(query)-1]
-
-			cleanedQuery, err := cleanQuery(query)
-			if err != nil {
-				log.Printf("Error cleaning query: %v", err)
-			} else {
-				heartbeat.AddPendingQuery(cleanedQuery, false)
-			}
+	go func() {
+		defer wg.Done()
+		if err := copyAndInspectResponse(targetConn, localConn, true); err != nil {
+			log.Printf("Error in data transfer from target to local: %v", err)
 		}
-	}
+	}()
 
-	return len(p), nil
+	wg.Wait()
+	localConn.Close()
+	targetConn.Close()
 }
