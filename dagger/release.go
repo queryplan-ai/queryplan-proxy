@@ -83,9 +83,6 @@ func (q *QueryplanProxy) Release(
 	chartArchive := chartContainer.
 		WithExec([]string{"helm", "package", "/chart"}).
 		File(fmt.Sprintf("/apps/queryplan-proxy-chart-%s.tgz", newVersion))
-	if err != nil {
-		return err
-	}
 	releaseAssets = append(releaseAssets, chartArchive)
 
 	err = publishChart(ctx, chartArchive, newVersion, username, githubToken)
