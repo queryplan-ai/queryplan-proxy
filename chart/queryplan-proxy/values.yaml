@@ -12,7 +12,8 @@ connection:
   bindPort: 3306
   upstreamAddress: ""
   upstreamPort: ""
-  apiUrl: https://api.queryplan.ai
+
+apiUrl: https://api.queryplan.ai
 
 token: ""
 
