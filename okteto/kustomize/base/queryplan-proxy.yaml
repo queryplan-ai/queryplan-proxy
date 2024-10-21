@@ -25,8 +25,8 @@ spec:
           envFrom:
             - secretRef:
                 name: queryplan-proxy
- 
---- 
+
+---
 apiVersion: v1
 kind: Service
 metadata:
