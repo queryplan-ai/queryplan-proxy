@@ -2,13 +2,18 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
 	"golang.org/x/exp/rand"
 )
 
-func StartMockServer() (int, error) {
+type MockServerOpts struct {
+	QueryReceivedCh chan string
+}
+
+func StartMockServer(opts MockServerOpts) (int, error) {
 	// start an http server with 2 methods to
 	// receive and log the requests
 
@@ -19,6 +24,15 @@ func StartMockServer() (int, error) {
 			w.WriteHeader(http.StatusOK)
 			return
 		} else if r.URL.Path == "/v1/queries" {
+			// parse the body
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			fmt.Printf("Query: %s\n", string(body))
+			opts.QueryReceivedCh <- "query"
 			w.WriteHeader(http.StatusOK)
 			return
 		}

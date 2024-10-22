@@ -2,9 +2,11 @@ package upstream
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os/exec"
 
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/exp/rand"
 )
 
@@ -81,6 +83,26 @@ func StartPostgres(logStdout bool, logStderr bool) (*UpsreamProcess, error) {
 			done <- fmt.Errorf("failed to stop postgres: %v", err)
 		}
 	}()
+
+	// apply a schema
+	connectionURI := fmt.Sprintf("postgres://%s:%s@%s:%d/postgres", "postgres", password, "localhost", port)
+	conn, err := pgx.Connect(context.Background(), connectionURI)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(context.Background(), "create table users (id int, name varchar(255))")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = conn.Exec(context.Background(), "insert into users (id, name) values (1, 'John')")
+	if err != nil {
+		return nil, err
+	}
+
+	conn.Close(context.Background())
 
 	return &UpsreamProcess{
 		done:     done,
