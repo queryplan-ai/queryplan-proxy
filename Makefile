@@ -91,3 +91,7 @@ release:
 		--username marccampbell \
 		--github-token env:GITHUB_TOKEN \
 		--progress plain
+
+.PHONY: test-integration
+test-integration: build
+	make -C test/integration postgres
