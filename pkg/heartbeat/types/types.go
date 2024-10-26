@@ -11,10 +11,15 @@ type QueryPlanTablesResponse struct {
 type QueryPlanQuery struct {
 	ExecutedAt          int64  `json:"executed_at"`
 	Duration            int64  `json:"duration"`
+	RowCount            int64  `json:"row_count"`
 	Query               string `json:"query"`
 	IsPreparedStatement bool   `json:"is_prepared_statement"`
+}
 
-	// Callstack?
+type QueryPlanCurrentQuery struct {
+	ExecutionStartedAt  int64
+	Query               string
+	IsPreparedStatement bool
 }
 
 type QueryPlanQueriesPayload struct {

@@ -7,16 +7,37 @@ import (
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 )
 
-func AddPendingQuery(query string, isPreparedStatement bool) {
+func CompleteCurrentQuery(rowCount int64) {
+	if currentQuery == nil {
+		return
+	}
+
+	duration := time.Now().UnixNano() - currentQuery.ExecutionStartedAt
+
+	AddPendingQuery(*currentQuery, duration, rowCount)
+	currentQuery = nil
+}
+
+func SetCurrentQuery(query string, isPreparedStatement bool) {
+	currentQuery = &types.QueryPlanCurrentQuery{
+		Query:               query,
+		ExecutionStartedAt:  time.Now().UnixNano(),
+		IsPreparedStatement: isPreparedStatement,
+	}
+}
+
+func AddPendingQuery(currentQuery types.QueryPlanCurrentQuery, duration int64, rowCount int64) {
 	// some queries we filter here
-	if isFilteredQuery(query) {
+	if isFilteredQuery(currentQuery.Query) {
 		return
 	}
 
 	qpq := types.QueryPlanQuery{
-		Query:               query,
+		Query:               currentQuery.Query,
 		ExecutedAt:          time.Now().UnixNano(),
-		IsPreparedStatement: isPreparedStatement,
+		RowCount:            rowCount,
+		Duration:            duration,
+		IsPreparedStatement: currentQuery.IsPreparedStatement,
 	}
 
 	pendingQueries.Add(qpq)

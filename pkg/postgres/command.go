@@ -14,7 +14,7 @@ var (
 	ErrNonQueryData = fmt.Errorf("non-query data")
 )
 
-func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
+func copyAndInspectCommand(src net.Conn, dst net.Conn, inspect bool) error {
 	buffer := make([]byte, 4096)
 	for {
 		n, err := src.Read(buffer)
@@ -33,7 +33,7 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 				if err != nil {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
-					heartbeat.AddPendingQuery(cleanedQuery, isPreparedStatement)
+					heartbeat.SetCurrentQuery(cleanedQuery, isPreparedStatement)
 				}
 			} else {
 				if errors.Cause(err) != ErrNonQueryData {
