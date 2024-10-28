@@ -4,81 +4,78 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
-
-	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
 )
 
 func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
-	var buffer bytes.Buffer
+	var accum bytes.Buffer
+	buf := make([]byte, 8192)
+
+	var isResultSet bool
+	var rowCount int64
+
 	for {
-		data := make([]byte, 4096)
-		n, err := src.Read(data)
+		n, err := src.Read(buf)
 		if err != nil {
 			if err != io.EOF {
-				return err
+				log.Printf("Error reading from upstream: %v", err)
 			}
-			break
-		}
-
-		if _, err := dst.Write(data[:n]); err != nil {
 			return err
 		}
 
-		if inspect {
-			buffer.Write(data[:n])
+		accum.Write(buf[:n])
 
-			packetsReceived := 0
-			resultSetPacket := types.COM_Query_TextResultsetPacket{}
-
-			for {
-				full, length := isFullPacket(&buffer)
-				if !full {
-					break
-				}
-				packetData := buffer.Next(length + 4)
-				err := parseFullResponsePacket(packetData, packetsReceived, &resultSetPacket)
-				if err != nil {
-					return err
-				}
-
-				packetsReceived++
+		// Continue to read every possible complete packet from accum
+		for {
+			data := accum.Bytes()
+			count, ok := parseNextPacket(data)
+			if !ok {
+				break
 			}
 
-			// log.Printf("Packet: %#v", resultSetPacket)
+			dataToForward := data[:count]
+			_, err = dst.Write(dataToForward)
+			if err != nil {
+				log.Printf("Error writing to client: %v", err)
+				return err
+			}
+
+			// process this packet
+			if err := parseFullResponsePacket(data, &isResultSet, &rowCount); err != nil {
+				return err
+			}
+
+			// Remove the processed packet from the buffer
+			accum.Next(count)
 		}
 	}
-	return nil
 }
 
-func isFullPacket(buffer *bytes.Buffer) (bool, int) {
-	if buffer.Len() < 4 {
-		return false, 0 // Not enough data to determine the length
+func parseNextPacket(data []byte) (length int, ok bool) {
+	// Check if we have enough data to determine the length
+	if len(data) < 4 {
+		return 0, false
+	}
+	length = int(data[0]) | int(data[1])<<8 | int(data[2])<<16
+
+	// Check if we have a full packet
+	if len(data) >= length+4 {
+		return length + 4, true
 	}
 
-	data := buffer.Bytes()
-	length := int(data[0]) | int(data[1])<<8 | int(data[2])<<16
-
-	if buffer.Len() >= length+4 {
-		return true, length // Full packet is available, return its length
-	}
-	return false, 0 // Full packet is not available
+	return 0, false
 }
 
-func parseFullResponsePacket(packetData []byte, packetsReceived int, resultSetPacket *types.COM_Query_TextResultsetPacket) error {
-	if len(packetData) < 5 { // 4 bytes header + at least 1 byte payload
-		return fmt.Errorf("packet is too short to determine type")
-	}
-
-	// The payload starts at index 4
+func parseFullResponsePacket(data []byte, isResultSet *bool, rowCount *int64) error {
 	payloadStartIndex := 4
-	packetType := packetData[payloadStartIndex]
+	packetType := data[payloadStartIndex]
 
 	switch packetType {
 	case 0x00:
-		if packetsReceived == 0 && len(packetData) >= 9 { // 4 byte header + 5 bytes minimum for stmt ID
+		if len(data) >= 9 {
 			// This could be a prepared statement response
-			stmtID := uint32(packetData[5]) | uint32(packetData[6])<<8 | uint32(packetData[7])<<16 | uint32(packetData[8])<<24
+			stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
 
 			// hmm, for now, we find the prepared statement with an id of -1 and assign to this
 			for _, ps := range preparedStatements.GetAll() {
@@ -88,19 +85,37 @@ func parseFullResponsePacket(packetData []byte, packetsReceived int, resultSetPa
 				}
 			}
 		}
-	case 0xFB:
-		fmt.Println("LOCAL INFILE packet received")
+
+	case 0xFE: // EOF Packet
+		fmt.Printf("EOF Packet\n")
+		if *isResultSet {
+			// End of rows in result set
+			fmt.Printf("EOF packet received, ending result set with %d rows\n", *rowCount)
+			*isResultSet = false
+		} else {
+			// End of column definitions, starting row counting
+			fmt.Println("EOF packet received, preparing for row counting")
+			*isResultSet = true
+			*rowCount = 0
+		}
+
 	case 0xFF:
 		fmt.Println("Error packet received")
+
 	default:
-		// Likely the start of a result set
-		if packetsReceived == 0 {
-			colCount, _, _ := lenDecInt(packetData[payloadStartIndex:])
-			resultSetPacket.ColumnCount = int(colCount)
-			// fmt.Printf("Result set with %d columns\n", colCount)
+		// Possible data row if in a result set
+		if *isResultSet {
+			*rowCount++
+			fmt.Printf("Data Row Packet - Row %d\n", *rowCount)
+			fmt.Printf("data: %s\n", string(data[payloadStartIndex:]))
+
+		} else {
+			colCount, _, _ := lenDecInt(data[payloadStartIndex:])
+			fmt.Printf("Result set with %d columns\n", colCount)
+			*isResultSet = true
+			*rowCount = 0
 		}
 	}
-
 	return nil
 }
 
