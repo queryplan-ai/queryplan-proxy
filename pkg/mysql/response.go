@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net"
+
+	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
 )
 
 func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
@@ -42,7 +44,7 @@ func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
 			}
 
 			// process this packet
-			if err := parseFullResponsePacket(data, &isResultSet, &rowCount); err != nil {
+			if err := parseFullResponsePacket(dataToForward, &isResultSet, &rowCount); err != nil {
 				return err
 			}
 
@@ -91,6 +93,7 @@ func parseFullResponsePacket(data []byte, isResultSet *bool, rowCount *int64) er
 		if *isResultSet {
 			// End of rows in result set
 			fmt.Printf("EOF packet received, ending result set with %d rows\n", *rowCount)
+			heartbeat.CompleteCurrentQuery(*rowCount)
 			*isResultSet = false
 		} else {
 			// End of column definitions, starting row counting
@@ -106,14 +109,15 @@ func parseFullResponsePacket(data []byte, isResultSet *bool, rowCount *int64) er
 		// Possible data row if in a result set
 		if *isResultSet {
 			*rowCount++
-			fmt.Printf("Data Row Packet - Row %d\n", *rowCount)
-			fmt.Printf("data: %s\n", string(data[payloadStartIndex:]))
+			// fmt.Printf("Data Row Packet - Row %d\n", *rowCount)
+			// fmt.Printf("data: %s\n", string(data[payloadStartIndex:]))
 
 		} else {
 			colCount, _, _ := lenDecInt(data[payloadStartIndex:])
 			fmt.Printf("Result set with %d columns\n", colCount)
+			fmt.Printf("ignoring data: %s\n", string(data[payloadStartIndex:]))
 			*isResultSet = true
-			*rowCount = 0
+			*rowCount = 1 // because something is wrong, we are getting the 1st row in this packet
 		}
 	}
 	return nil

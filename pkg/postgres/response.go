@@ -8,7 +8,7 @@ import (
 	"net"
 	"strconv"
 
-	heartbeart "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
 )
 
 type PostgresResponseType byte
@@ -84,7 +84,7 @@ func copyAndInspectResponse(src net.Conn, dst net.Conn, inspect bool) error {
 					}
 					rowCount = int64(rowCountInt)
 				}
-				heartbeart.CompleteCurrentQuery(rowCount)
+				heartbeat.CompleteCurrentQuery(rowCount)
 			case PostgresResponseTypeErrorResponse:
 				log.Printf("Error in Response: %s", string(data[5:messageLength]))
 			case PostgresResponseTypeAuthentication:
