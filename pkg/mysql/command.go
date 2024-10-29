@@ -68,6 +68,12 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 				if err != nil {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
+					if strings.ToLower(cleanedQuery) == "select connection_id ( ) as pid" {
+						ignoreQuery = true
+					} else {
+						ignoreQuery = false
+						resetState()
+					}
 					heartbeat.SetCurrentQuery(cleanedQuery, isPreparedStatement)
 				}
 			} else {

@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -10,12 +9,40 @@ import (
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
 )
 
+type MysqlPacketType byte
+
+const (
+	MysqlPacketTypeOKPacket          = 0x00
+	MysqlPacketTypeEOFPacket         = 0xFE
+	MysqlPacketTypeHandshake         = 0x0A
+	MysqlPacketTypeHandshakeResponse = 0x01
+	MysqlPacketTypeColumnDefinition  = 0x03
+	MysqlPacketTypeComFieldList      = 0x04
+	// MysqlPacketTypeAuthSwitchRequest  = 0xFE
+	// MysqlPacketTypeAuthSwitchResponse = 0x01
+)
+
+type MysqlResponsePhase int
+
+const (
+	MysqlResponsePhaseColumnDefinition MysqlResponsePhase = 1
+	MysqlResponsePhaseRowData          MysqlResponsePhase = 2
+)
+
+var ignoreQuery bool
+var isResultSet bool
+var rowCount = int64(0)
+var phase = MysqlResponsePhaseColumnDefinition
+
+// copyAndInspectResponse copies data from src to dst and parses the MySQL response
+// mysql keeps the connection alive though, so the scope of this function
+// is likely > 1 query
 func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
 	var accum bytes.Buffer
 	buf := make([]byte, 8192)
 
-	var isResultSet bool
-	var rowCount int64
+	// default to ignoring the next query
+	ignoreQuery = true
 
 	for {
 		n, err := src.Read(buf)
@@ -44,7 +71,7 @@ func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
 			}
 
 			// process this packet
-			if err := parseFullResponsePacket(dataToForward, &isResultSet, &rowCount); err != nil {
+			if err := parseFullResponsePacket(dataToForward); err != nil {
 				return err
 			}
 
@@ -69,12 +96,17 @@ func parseNextPacket(data []byte) (length int, ok bool) {
 	return 0, false
 }
 
-func parseFullResponsePacket(data []byte, isResultSet *bool, rowCount *int64) error {
+func parseFullResponsePacket(data []byte) error {
+	if ignoreQuery {
+		return nil
+	}
+
 	payloadStartIndex := 4
 	packetType := data[payloadStartIndex]
 
 	switch packetType {
-	case 0x00:
+	case MysqlPacketTypeOKPacket:
+		ignoreQuery = false
 		if len(data) >= 9 {
 			// This could be a prepared statement response
 			stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
@@ -87,59 +119,35 @@ func parseFullResponsePacket(data []byte, isResultSet *bool, rowCount *int64) er
 				}
 			}
 		}
+	case MysqlPacketTypeColumnDefinition:
+		break
 
-	case 0xFE: // EOF Packet
-		fmt.Printf("EOF Packet\n")
-		if *isResultSet {
-			// End of rows in result set
-			fmt.Printf("EOF packet received, ending result set with %d rows\n", *rowCount)
-			heartbeat.CompleteCurrentQuery(*rowCount)
-			*isResultSet = false
-		} else {
-			// End of column definitions, starting row counting
-			fmt.Println("EOF packet received, preparing for row counting")
-			*isResultSet = true
-			*rowCount = 0
+	case MysqlPacketTypeEOFPacket:
+		switch phase {
+		case MysqlResponsePhaseColumnDefinition:
+			phase = MysqlResponsePhaseRowData
+			isResultSet = true
+			rowCount = 0
+		case MysqlResponsePhaseRowData:
+			heartbeat.CompleteCurrentQuery(rowCount)
+			isResultSet = false
+			rowCount = 0
 		}
 
-	case 0xFF:
-		fmt.Println("Error packet received")
+	case MysqlPacketTypeHandshake, MysqlPacketTypeHandshakeResponse:
+		break
+
+	case MysqlPacketTypeComFieldList:
+		break
 
 	default:
-		// Possible data row if in a result set
-		if *isResultSet {
-			*rowCount++
-			// fmt.Printf("Data Row Packet - Row %d\n", *rowCount)
-			// fmt.Printf("data: %s\n", string(data[payloadStartIndex:]))
-
-		} else {
-			colCount, _, _ := lenDecInt(data[payloadStartIndex:])
-			fmt.Printf("Result set with %d columns\n", colCount)
-			fmt.Printf("ignoring data: %s\n", string(data[payloadStartIndex:]))
-			*isResultSet = true
-			*rowCount = 1 // because something is wrong, we are getting the 1st row in this packet
-		}
+		rowCount++
 	}
 	return nil
 }
 
-func lenDecInt(b []byte) (uint64, uint64, bool) { // int, offset, is null
-	if len(b) == 0 { // MySQL may return 0 bytes for NULL value
-		return 0, 0, true
-	}
-
-	switch b[0] {
-	case 0xfb:
-		return 0, 1, true
-	case 0xfc:
-		return uint64(b[1]) | uint64(b[2])<<8, 3, false
-	case 0xfd:
-		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16, 4, false
-	case 0xfe:
-		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16 |
-			uint64(b[4])<<24 | uint64(b[5])<<32 | uint64(b[6])<<40 |
-			uint64(b[7])<<48 | uint64(b[8])<<56, 9, false
-	default:
-		return uint64(b[0]), 1, false
-	}
+func resetState() {
+	isResultSet = false
+	rowCount = 0
+	phase = MysqlResponsePhaseColumnDefinition
 }
