@@ -104,6 +104,7 @@ func extractQuery(data []byte) (string, bool, error) {
 		return strings.TrimSpace(string(data[5:])), false, nil
 	case COM_STMT_PREPARE:
 		query := strings.TrimSpace(string(data[5:]))
+		fmt.Printf("adding prepared statement: %s\n", query)
 		preparedStatements.Add(&PreparedStatement{
 			ID:    -1, // we don't have the ID yet, we will find this in the response protocol from the server
 			Query: query,
@@ -116,6 +117,7 @@ func extractQuery(data []byte) (string, bool, error) {
 		}
 		stmtID := binary.LittleEndian.Uint32(data[5:9])
 		for _, ps := range preparedStatements.GetAll() {
+			fmt.Printf("checking prepared statement: %#v\n", ps)
 			if ps.ID == int(stmtID) {
 				// we don't have a function to remove an item from our ringbuffer
 				// so we let it expire

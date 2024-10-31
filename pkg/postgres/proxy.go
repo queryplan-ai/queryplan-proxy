@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -57,6 +59,11 @@ func handlePostgresConnection(localConn net.Conn, targetAddress string) {
 	go func() {
 		defer wg.Done()
 		if err := copyAndInspectResponse(targetConn, localConn, true); err != nil {
+			if errors.Is(err, io.EOF) {
+				// safe to ignore, the client went away
+				return
+			}
+
 			log.Printf("Error in data transfer from target to local: %v", err)
 		}
 	}()
