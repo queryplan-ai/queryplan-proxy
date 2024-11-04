@@ -37,8 +37,8 @@ func main() {
 
 	executeQuery := func(db *sql.DB, wg *sync.WaitGroup) {
 		defer wg.Done()
-		query := "select id from cluster_history limit 5"
-		rows, err := db.Query(query)
+		query := "select id from cluster_history where id <> ?"
+		rows, err := db.Query(query, "asdasdasd")
 		if err != nil {
 			log.Fatalf("Failed to execute query: %v", err)
 		}
@@ -56,7 +56,7 @@ func main() {
 
 	// start 5 goroutines to execute queries concurrently, waiting for all to finish
 	wg := sync.WaitGroup{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1; i++ {
 		wg.Add(1)
 		go executeQuery(db, &wg)
 	}

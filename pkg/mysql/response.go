@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -30,8 +29,18 @@ const (
 	MysqlResponsePhaseRowData          MysqlResponsePhase = 2
 )
 
+type PreparedStatement struct {
+	ID          int
+	Query       string
+	PrepareSent bool
+	ExecuteSent bool
+}
+
+var (
+	preparedStatement *PreparedStatement
+)
+
 var ignoreQuery bool
-var isInPreparedStatement bool
 var rowCount = int64(0)
 var phase = MysqlResponsePhaseColumnDefinition
 
@@ -44,7 +53,6 @@ func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
 
 	// default to ignoring the next query
 	ignoreQuery = true
-	isInPreparedStatement = false
 
 	for {
 		n, err := src.Read(buf)
@@ -103,30 +111,22 @@ func parseFullResponsePacket(data []byte) error {
 	payloadStartIndex := 4
 	packetType := data[payloadStartIndex]
 
-	if packetType == MysqlPacketTypeOKPacket && len(data) >= 9 {
-		// This could be a prepared statement response
-		stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
-
-		// hmm, for now, we find the prepared statement with an id of -1 and assign to this
-		for _, ps := range preparedStatements.GetAll() {
-			if ps.ID == -1 {
-				ps.ID = int(stmtID)
-				break
-			}
-		}
-	}
-
 	if ignoreQuery {
+		if packetType == MysqlPacketTypeOKPacket && len(data) >= 9 && preparedStatement != nil {
+			// This could be a prepared statement response
+			stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
+			preparedStatement.ID = int(stmtID)
+		}
+
 		return nil
 	}
-
 	switch packetType {
 	case MysqlPacketTypeOKPacket:
-		ignoreQuery = false
 		if len(data) >= 9 {
-			if len(preparedStatements.GetAll()) > 0 {
-				rowCount++
-			}
+			// if preparedStatement != nil && preparedStatement.ExecuteSent {
+			rowCount++
+			return nil
+			// }
 		}
 
 	case MysqlPacketTypeColumnDefinition:
@@ -138,7 +138,7 @@ func parseFullResponsePacket(data []byte) error {
 			phase = MysqlResponsePhaseRowData
 			rowCount = 0
 		case MysqlResponsePhaseRowData:
-			fmt.Printf("EOF packet received, ending result set with %d rows\n", rowCount)
+			// fmt.Printf("EOF packet received, ending result set with %d rows\n", rowCount)
 			heartbeat.CompleteCurrentQuery(rowCount)
 			rowCount = 0
 		}
@@ -156,7 +156,7 @@ func parseFullResponsePacket(data []byte) error {
 }
 
 func resetState() {
-	isInPreparedStatement = false
+	preparedStatement = nil
 	rowCount = 0
 	phase = MysqlResponsePhaseColumnDefinition
 }

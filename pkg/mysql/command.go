@@ -10,22 +10,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/ringbuffer"
 )
 
 var (
 	ErrNonQueryData                   = fmt.Errorf("non-query data")
 	ErrNonQueryDataOrIncompletePacket = fmt.Errorf("non-query data or incomplete packet")
 	ErrUnknownPreparedStatement       = fmt.Errorf("unknown prepared statement")
-)
-
-type PreparedStatement struct {
-	ID    int
-	Query string
-}
-
-var (
-	preparedStatements = ringbuffer.New[*PreparedStatement](1000)
 )
 
 const (
@@ -104,11 +94,12 @@ func extractQuery(data []byte) (string, bool, error) {
 		return strings.TrimSpace(string(data[5:])), false, nil
 	case COM_STMT_PREPARE:
 		query := strings.TrimSpace(string(data[5:]))
-		fmt.Printf("adding prepared statement: %s\n", query)
-		preparedStatements.Add(&PreparedStatement{
-			ID:    -1, // we don't have the ID yet, we will find this in the response protocol from the server
-			Query: query,
-		})
+		preparedStatement = &PreparedStatement{
+			ID:          -1,
+			Query:       query,
+			PrepareSent: true,
+			ExecuteSent: false,
+		}
 		return "", false, ErrNonQueryData // really this should be after we find the statement in COM_STMT_EXECUTE
 	case COM_STMT_EXECUTE:
 		// find the prepared statement with the same id, log that this query was executed
@@ -116,14 +107,9 @@ func extractQuery(data []byte) (string, bool, error) {
 			return "", false, ErrNonQueryDataOrIncompletePacket
 		}
 		stmtID := binary.LittleEndian.Uint32(data[5:9])
-		for _, ps := range preparedStatements.GetAll() {
-			fmt.Printf("checking prepared statement: %#v\n", ps)
-			if ps.ID == int(stmtID) {
-				// we don't have a function to remove an item from our ringbuffer
-				// so we let it expire
-				fmt.Printf("Found prepared statement with ID %d\n", ps.ID)
-				return ps.Query, true, nil
-			}
+		if preparedStatement != nil && preparedStatement.ID == int(stmtID) {
+			preparedStatement.ExecuteSent = true
+			return preparedStatement.Query, true, nil
 		}
 
 		fmt.Printf("Unknown prepared statement ID: %v\n", stmtID)

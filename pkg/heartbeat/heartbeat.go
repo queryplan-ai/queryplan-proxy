@@ -1,7 +1,6 @@
 package heartbeat
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 )
 
 func CompleteCurrentQuery(rowCount int64) {
-	fmt.Printf("CompleteCurrentQuery: %d\n", rowCount)
 	if currentQuery == nil {
 		return
 	}
