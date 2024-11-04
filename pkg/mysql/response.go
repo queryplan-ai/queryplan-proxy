@@ -110,7 +110,7 @@ func parseFullResponsePacket(data []byte) error {
 	switch packetType {
 	case MysqlPacketTypeOKPacket:
 		if len(data) >= 9 {
-			// if preparedStatement != nil && preparedStatement.ExecuteSent {
+			// if preparedStatement != nil {
 			rowCount++
 			lastPacketType = packetType
 			return nil
@@ -124,8 +124,6 @@ func parseFullResponsePacket(data []byte) error {
 		if lastPacketType == MysqlPacketTypeOKPacket {
 			heartbeat.CompleteCurrentQuery(rowCount)
 			rowCount = 0
-		} else {
-			resetState()
 		}
 		lastPacketType = packetType
 
