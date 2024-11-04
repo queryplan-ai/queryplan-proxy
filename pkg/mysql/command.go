@@ -18,6 +18,18 @@ var (
 	ErrUnknownPreparedStatement       = fmt.Errorf("unknown prepared statement")
 )
 
+type MysqlCommandPhase int
+
+const (
+	MysqlCommandReceivedNone              MysqlCommandPhase = 0
+	MysqlCommandReceivedQuery             MysqlCommandPhase = 1
+	MysqlCommandReceivedStatementPrepared MysqlCommandPhase = 2
+	MysqlCommandReceivedStatementExecuted MysqlCommandPhase = 3
+	MysqlCommandReceivedCloseStatement    MysqlCommandPhase = 4
+)
+
+var commandPhase = MysqlCommandReceivedNone
+
 const (
 	COM_QUIT             = 0x01
 	COM_INIT_DB          = 0x02
@@ -39,7 +51,7 @@ const (
 	COM_STMT_CLOSE       = 0x19
 )
 
-func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
+func copyAndInspectCommands(src, dst net.Conn, inspect bool) error {
 	buffer := make([]byte, 4096)
 	for {
 		n, err := src.Read(buffer)
@@ -59,9 +71,7 @@ func copyAndInspectCommand(src, dst net.Conn, inspect bool) error {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
 					if strings.ToLower(cleanedQuery) == "select connection_id ( ) as pid" {
-						ignoreQuery = true
 					} else {
-						ignoreQuery = false
 						resetState()
 					}
 					heartbeat.SetCurrentQuery(cleanedQuery, isPreparedStatement)
@@ -91,34 +101,38 @@ func extractQuery(data []byte) (string, bool, error) {
 
 	switch data[4] {
 	case COM_QUERY:
+		commandPhase = MysqlCommandReceivedQuery
 		return strings.TrimSpace(string(data[5:])), false, nil
 	case COM_STMT_PREPARE:
+		commandPhase = MysqlCommandReceivedStatementPrepared
 		query := strings.TrimSpace(string(data[5:]))
 		preparedStatement = &PreparedStatement{
-			ID:          -1,
-			Query:       query,
-			PrepareSent: true,
-			ExecuteSent: false,
+			ID:    -1,
+			Query: query,
 		}
 		return "", false, ErrNonQueryData // really this should be after we find the statement in COM_STMT_EXECUTE
 	case COM_STMT_EXECUTE:
+		commandPhase = MysqlCommandReceivedStatementExecuted
 		// find the prepared statement with the same id, log that this query was executed
 		if len(data) < 9 {
 			return "", false, ErrNonQueryDataOrIncompletePacket
 		}
 		stmtID := binary.LittleEndian.Uint32(data[5:9])
 		if preparedStatement != nil && preparedStatement.ID == int(stmtID) {
-			preparedStatement.ExecuteSent = true
 			return preparedStatement.Query, true, nil
 		}
 
 		fmt.Printf("Unknown prepared statement ID: %v\n", stmtID)
 		return "", false, ErrUnknownPreparedStatement
 
+	case COM_STMT_CLOSE:
+		commandPhase = MysqlCommandReceivedCloseStatement
+		return "", false, ErrNonQueryData
+
 	case COM_QUIT, COM_INIT_DB, COM_FIELD_LIST, COM_CREATE_DB,
 		COM_DROP_DB, COM_REFRESH, COM_STATISTICS, COM_PROCESS_INFO,
 		COM_CONNECT, COM_PROCESS_KILL, COM_DEBUG, COM_PING,
-		COM_CHANGE_USER, COM_RESET_CONNECTION, COM_STMT_CLOSE:
+		COM_CHANGE_USER, COM_RESET_CONNECTION:
 		return "", false, ErrNonQueryData
 	}
 

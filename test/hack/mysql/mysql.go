@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -37,8 +38,10 @@ func main() {
 
 	executeQuery := func(db *sql.DB, wg *sync.WaitGroup) {
 		defer wg.Done()
-		query := "select id from cluster_history where id <> ?"
-		rows, err := db.Query(query, "asdasdasd")
+		query := `select id from cluster_history where created_at < ? limit 8`
+		when, _ := time.Parse(time.RFC3339, "2023-08-09T00:00:00Z")
+		// query := "select id from cluster_history where id <> ?"
+		rows, err := db.Query(query, when)
 		if err != nil {
 			log.Fatalf("Failed to execute query: %v", err)
 		}

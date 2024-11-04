@@ -12,47 +12,34 @@ import (
 type MysqlPacketType byte
 
 const (
+	MysqlPacketTypeUnknown           = 0xFF
 	MysqlPacketTypeOKPacket          = 0x00
 	MysqlPacketTypeEOFPacket         = 0xFE
 	MysqlPacketTypeHandshake         = 0x0A
 	MysqlPacketTypeHandshakeResponse = 0x01
 	MysqlPacketTypeColumnDefinition  = 0x03
 	MysqlPacketTypeComFieldList      = 0x04
-	// MysqlPacketTypeAuthSwitchRequest  = 0xFE
-	// MysqlPacketTypeAuthSwitchResponse = 0x01
-)
-
-type MysqlResponsePhase int
-
-const (
-	MysqlResponsePhaseColumnDefinition MysqlResponsePhase = 1
-	MysqlResponsePhaseRowData          MysqlResponsePhase = 2
 )
 
 type PreparedStatement struct {
-	ID          int
-	Query       string
-	PrepareSent bool
-	ExecuteSent bool
+	ID    int
+	Query string
 }
 
 var (
 	preparedStatement *PreparedStatement
 )
 
-var ignoreQuery bool
 var rowCount = int64(0)
-var phase = MysqlResponsePhaseColumnDefinition
+
+var lastPacketType byte = MysqlPacketTypeUnknown
 
 // copyAndInspectResponse copies data from src to dst and parses the MySQL response
 // mysql keeps the connection alive though, so the scope of this function
 // is likely > 1 query
-func copyAndInspectResponse(src, dst net.Conn, inspect bool) error {
+func copyAndInspectResponses(src, dst net.Conn, inspect bool) error {
 	var accum bytes.Buffer
 	buf := make([]byte, 8192)
-
-	// default to ignoring the next query
-	ignoreQuery = true
 
 	for {
 		n, err := src.Read(buf)
@@ -111,45 +98,45 @@ func parseFullResponsePacket(data []byte) error {
 	payloadStartIndex := 4
 	packetType := data[payloadStartIndex]
 
-	if ignoreQuery {
-		if packetType == MysqlPacketTypeOKPacket && len(data) >= 9 && preparedStatement != nil {
-			// This could be a prepared statement response
-			stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
-			preparedStatement.ID = int(stmtID)
-		}
+	if packetType == MysqlPacketTypeOKPacket && len(data) >= 9 && preparedStatement != nil {
+		// This could be a prepared statement response
+		stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
+		preparedStatement.ID = int(stmtID)
 
 		return nil
+
 	}
+
 	switch packetType {
 	case MysqlPacketTypeOKPacket:
 		if len(data) >= 9 {
 			// if preparedStatement != nil && preparedStatement.ExecuteSent {
 			rowCount++
+			lastPacketType = packetType
 			return nil
 			// }
 		}
 
 	case MysqlPacketTypeColumnDefinition:
-		break
+		lastPacketType = packetType
 
 	case MysqlPacketTypeEOFPacket:
-		switch phase {
-		case MysqlResponsePhaseColumnDefinition:
-			phase = MysqlResponsePhaseRowData
-			rowCount = 0
-		case MysqlResponsePhaseRowData:
-			// fmt.Printf("EOF packet received, ending result set with %d rows\n", rowCount)
+		if lastPacketType == MysqlPacketTypeOKPacket {
 			heartbeat.CompleteCurrentQuery(rowCount)
 			rowCount = 0
+		} else {
+			resetState()
 		}
+		lastPacketType = packetType
 
 	case MysqlPacketTypeHandshake, MysqlPacketTypeHandshakeResponse:
-		break
+		lastPacketType = packetType
 
 	case MysqlPacketTypeComFieldList:
-		break
+		lastPacketType = packetType
 
 	default:
+		lastPacketType = packetType
 		rowCount++
 	}
 	return nil
@@ -158,5 +145,5 @@ func parseFullResponsePacket(data []byte) error {
 func resetState() {
 	preparedStatement = nil
 	rowCount = 0
-	phase = MysqlResponsePhaseColumnDefinition
+	commandPhase = MysqlCommandReceivedNone
 }
