@@ -101,6 +101,8 @@ func parseFullResponsePacket(data []byte, connectionState *types.ConnectionState
 		}
 
 	case MysqlPacketTypeEOFPacket:
+		connectionState.EOFCount++
+
 		if connectionState.PreparedStatement != nil {
 			if connectionState.PreparedStatement.IsExecuted {
 				connectionState.PreparedStatement.CountEOFReceived++
@@ -109,13 +111,20 @@ func parseFullResponsePacket(data []byte, connectionState *types.ConnectionState
 				}
 			}
 		}
+
+		if connectionState.ReceivedSimpleQuery && connectionState.EOFCount == 3 {
+			heartbeat.CompleteCurrentQuery(connectionState.CurrentQuery, connectionState.RowCount)
+		}
 		connectionState.RowCount = 0
 
 	case MysqlPacketTypeColumnDefinition, MysqlPacketTypeHandshake, MysqlPacketTypeHandshakeResponse, MysqlPacketTypeComFieldList:
 		break
 
 	default:
-		connectionState.RowCount++
+		if connectionState.ReceivedSimpleQuery {
+			connectionState.RowCount++
+		}
+
 	}
 
 	return nil

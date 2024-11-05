@@ -65,20 +65,14 @@ func copyAndInspectResponse(src net.Conn, dst net.Conn, connectionState *types.C
 			switch messageType {
 			case PostgresResponseTypeRowDescription:
 				if len(data) < 7 {
-					log.Println("Row description message too short")
 					return fmt.Errorf("incomplete row description message")
 				}
-				columnCount := int(data[5])<<8 | int(data[6])
-				log.Printf("Number of columns: %d", columnCount)
 			case PostgresResponseTypeDataRow:
-				log.Printf("Data Row: %s", string(data[5:messageLength]))
 			case PostgresResponseTypeCommandComplete:
 				commandTag := string(data[5:messageLength])
-				fmt.Printf("Command tag: %s\n", commandTag)
 				rowCount := int64(-1)
 				if len(commandTag) > 6 && commandTag[6] == ' ' {
 					rowCountPart := commandTag[7:] // "SELECT"
-					fmt.Printf("rowCountPart: %s\n", rowCountPart)
 					rowCountInt, err := strconv.Atoi(rowCountPart)
 					if err != nil {
 						log.Printf("Error parsing row count: %v", err)

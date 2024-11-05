@@ -24,10 +24,12 @@ type PreparedStatement struct {
 }
 
 type ConnectionState struct {
-	ID                string
-	RowCount          int64
-	PreparedStatement *PreparedStatement
-	CurrentQuery      *heartbeattypes.CurrentQuery
+	ID                  string
+	RowCount            int64
+	PreparedStatement   *PreparedStatement
+	ReceivedSimpleQuery bool
+	EOFCount            int
+	CurrentQuery        *heartbeattypes.CurrentQuery
 }
 
 func NewConnectionState() (*ConnectionState, error) {

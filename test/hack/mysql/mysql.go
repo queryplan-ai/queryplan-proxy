@@ -36,7 +36,35 @@ func main() {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
-	executeQuery := func(db *sql.DB, wg *sync.WaitGroup) {
+	executeSimpleQuery := func(db *sql.DB, wg *sync.WaitGroup) {
+		defer wg.Done()
+		query := "select id from cluster_history limit 8"
+		rows, err := db.Query(query)
+		if err != nil {
+			log.Fatalf("Failed to execute query: %v", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			id := ""
+			if err := rows.Scan(&id); err != nil {
+				log.Fatalf("Failed to scan row: %v", err)
+			}
+
+			fmt.Printf("Query executed successfully, result: %s\n", id)
+		}
+	}
+
+	// start 5 goroutines to execute queries concurrently, waiting for all to finish
+	simpleWg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		simpleWg.Add(1)
+		go executeSimpleQuery(db, &simpleWg)
+	}
+
+	simpleWg.Wait()
+
+	executePreparedQuery := func(db *sql.DB, wg *sync.WaitGroup) {
 		defer wg.Done()
 		query := `select id from cluster_history where created_at < ? limit 8`
 		when, _ := time.Parse(time.RFC3339, "2023-08-09T00:00:00Z")
@@ -58,11 +86,11 @@ func main() {
 	}
 
 	// start 5 goroutines to execute queries concurrently, waiting for all to finish
-	wg := sync.WaitGroup{}
+	preparedWg := sync.WaitGroup{}
 	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go executeQuery(db, &wg)
+		preparedWg.Add(1)
+		go executePreparedQuery(db, &preparedWg)
 	}
 
-	wg.Wait()
+	preparedWg.Wait()
 }

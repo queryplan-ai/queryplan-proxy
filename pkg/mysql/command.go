@@ -95,6 +95,7 @@ func extractQuery(data []byte, connectionState *types.ConnectionState) (string, 
 
 	switch data[4] {
 	case COM_QUERY:
+		connectionState.ReceivedSimpleQuery = true
 		connectionState.RowCount = 0
 		return strings.TrimSpace(string(data[5:])), false, nil
 	case COM_STMT_PREPARE:
