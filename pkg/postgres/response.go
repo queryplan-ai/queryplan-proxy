@@ -20,6 +20,9 @@ const (
 	PostgresResponseTypeCommandComplete = 'C'
 	PostgresResponseTypeErrorResponse   = 'E'
 	PostgresResponseTypeAuthentication  = 'R'
+	PostgresResponseTypeParameterStatus = 'S'
+	PostgresResponseTypeReadyForQuery   = 'Z'
+	PostgresResponseTypeKeyData         = 'K'
 )
 
 func copyAndInspectResponse(src net.Conn, dst net.Conn, connectionState *types.ConnectionState, inspect bool) error {
@@ -46,8 +49,6 @@ func copyAndInspectResponse(src net.Conn, dst net.Conn, connectionState *types.C
 			data := accum.Bytes()
 			messageType := PostgresResponseType(data[0])
 			messageLength := int(data[1])<<24 | int(data[2])<<16 | int(data[3])<<8 | int(data[4])
-
-			fmt.Printf("read %d bytes, this message is %d bytes long and type is %c\n", len(data), messageLength, messageType)
 
 			if len(data) < messageLength {
 				break
@@ -82,7 +83,8 @@ func copyAndInspectResponse(src net.Conn, dst net.Conn, connectionState *types.C
 				heartbeat.CompleteCurrentQuery(nil, rowCount)
 			case PostgresResponseTypeErrorResponse:
 				log.Printf("Error in Response: %s", string(data[5:messageLength]))
-			case PostgresResponseTypeAuthentication:
+			case PostgresResponseTypeAuthentication, PostgresResponseTypeParameterStatus, PostgresResponseTypeReadyForQuery, PostgresResponseTypeKeyData:
+
 			default:
 				log.Printf("Unhandled response type: %c", messageType)
 			}

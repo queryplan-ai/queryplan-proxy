@@ -84,7 +84,6 @@ func extractQuery(data []byte) (string, bool, error) {
 		// 'P' (1 byte), length (4 bytes), name (null-terminated), query (null-terminated), etc.
 		// For simplicity, we skip extracting the name here
 		query := string(data[5:messageLength])
-		fmt.Printf("Prepared statement: %s\n", query)
 		return query, true, nil
 
 	default:
