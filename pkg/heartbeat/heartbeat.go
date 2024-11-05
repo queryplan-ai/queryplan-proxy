@@ -8,7 +8,7 @@ import (
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 )
 
-func CompleteCurrentQuery(rowCount int64) {
+func CompleteCurrentQuery(currentQuery *types.CurrentQuery, rowCount int64) {
 	fmt.Printf("CompleteCurrentQuery: %d\n", rowCount)
 	if currentQuery == nil {
 		return
@@ -20,15 +20,7 @@ func CompleteCurrentQuery(rowCount int64) {
 	currentQuery = nil
 }
 
-func SetCurrentQuery(query string, isPreparedStatement bool) {
-	currentQuery = &types.QueryPlanCurrentQuery{
-		Query:               query,
-		ExecutionStartedAt:  time.Now().UnixNano(),
-		IsPreparedStatement: isPreparedStatement,
-	}
-}
-
-func AddPendingQuery(currentQuery types.QueryPlanCurrentQuery, duration int64, rowCount int64) {
+func AddPendingQuery(currentQuery types.CurrentQuery, duration int64, rowCount int64) {
 	// some queries we filter here
 	if isFilteredQuery(currentQuery.Query) {
 		return

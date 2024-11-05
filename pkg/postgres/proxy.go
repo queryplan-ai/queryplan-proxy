@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	daemontypes "github.com/queryplan-ai/queryplan-proxy/pkg/daemon/types"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/postgres/types"
 )
 
 func RunProxy(ctx context.Context, opts daemontypes.DaemonOpts) {
@@ -49,16 +50,23 @@ func handlePostgresConnection(localConn net.Conn, targetAddress string) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	connectionState, err := types.NewConnectionState()
+	if err != nil {
+		log.Printf("Error creating connection state: %v", err)
+		localConn.Close()
+		return
+	}
+
 	go func() {
 		defer wg.Done()
-		if err := copyAndInspectCommand(localConn, targetConn, true); err != nil {
+		if err := copyAndInspectCommand(localConn, targetConn, connectionState, true); err != nil {
 			log.Printf("Error in data transfer from local to target: %v", err)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		if err := copyAndInspectResponse(targetConn, localConn, true); err != nil {
+		if err := copyAndInspectResponse(targetConn, localConn, connectionState, true); err != nil {
 			if errors.Is(err, io.EOF) {
 				// safe to ignore, the client went away
 				return

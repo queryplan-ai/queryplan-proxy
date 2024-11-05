@@ -17,9 +17,6 @@ const (
 )
 
 var (
-	// currentQuery is the currently executing query
-	currentQuery *heartbeattypes.QueryPlanCurrentQuery
-
 	// pendingQueries is the ring buffer that are pending to send to the API
 	pendingQueries = ringbuffer.New[heartbeattypes.QueryPlanQuery](defaultMaxPendingQueriesSize)
 )

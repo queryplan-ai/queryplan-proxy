@@ -105,7 +105,7 @@ func parseFullResponsePacket(data []byte, connectionState *types.ConnectionState
 			if connectionState.PreparedStatement.IsExecuted {
 				connectionState.PreparedStatement.CountEOFReceived++
 				if connectionState.PreparedStatement.CountEOFReceived == 2 {
-					heartbeat.CompleteCurrentQuery(connectionState.RowCount)
+					heartbeat.CompleteCurrentQuery(connectionState.CurrentQuery, connectionState.RowCount)
 				}
 			}
 		}

@@ -5,16 +5,18 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/pkg/errors"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
+	heartbeattypes "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/postgres/types"
 )
 
 var (
 	ErrNonQueryData = fmt.Errorf("non-query data")
 )
 
-func copyAndInspectCommand(src net.Conn, dst net.Conn, inspect bool) error {
+func copyAndInspectCommand(src net.Conn, dst net.Conn, connectionState *types.ConnectionState, inspect bool) error {
 	buffer := make([]byte, 4096)
 	for {
 		n, err := src.Read(buffer)
@@ -33,7 +35,11 @@ func copyAndInspectCommand(src net.Conn, dst net.Conn, inspect bool) error {
 				if err != nil {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
-					heartbeat.SetCurrentQuery(cleanedQuery, isPreparedStatement)
+					connectionState.CurrentQuery = &heartbeattypes.CurrentQuery{
+						ExecutionStartedAt:  time.Now().UnixNano(),
+						Query:               cleanedQuery,
+						IsPreparedStatement: isPreparedStatement,
+					}
 				}
 			} else {
 				if errors.Cause(err) != ErrNonQueryData {

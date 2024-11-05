@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/postgres/types"
 )
 
 type PostgresResponseType byte
@@ -21,7 +22,7 @@ const (
 	PostgresResponseTypeAuthentication  = 'R'
 )
 
-func copyAndInspectResponse(src net.Conn, dst net.Conn, inspect bool) error {
+func copyAndInspectResponse(src net.Conn, dst net.Conn, connectionState *types.ConnectionState, inspect bool) error {
 	var accum bytes.Buffer
 	buf := make([]byte, 8192)
 
@@ -84,7 +85,7 @@ func copyAndInspectResponse(src net.Conn, dst net.Conn, inspect bool) error {
 					}
 					rowCount = int64(rowCountInt)
 				}
-				heartbeat.CompleteCurrentQuery(rowCount)
+				heartbeat.CompleteCurrentQuery(nil, rowCount)
 			case PostgresResponseTypeErrorResponse:
 				log.Printf("Error in Response: %s", string(data[5:messageLength]))
 			case PostgresResponseTypeAuthentication:

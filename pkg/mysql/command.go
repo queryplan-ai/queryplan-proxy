@@ -7,9 +7,10 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
-	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
+	heartbeattypes "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
 )
 
@@ -60,9 +61,14 @@ func copyAndInspectCommands(src, dst net.Conn, connectionState *types.Connection
 					log.Printf("Error cleaning query: %v", err)
 				} else {
 					if strings.ToLower(cleanedQuery) == "select connection_id ( ) as pid" {
-
+						// ignore
 					}
-					heartbeat.SetCurrentQuery(cleanedQuery, isPreparedStatement)
+
+					connectionState.CurrentQuery = &heartbeattypes.CurrentQuery{
+						ExecutionStartedAt:  time.Now().UnixNano(),
+						Query:               cleanedQuery,
+						IsPreparedStatement: isPreparedStatement,
+					}
 				}
 			} else {
 				if errors.Cause(err) != ErrNonQueryData {

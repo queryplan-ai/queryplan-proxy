@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/pubnative/mysqlproto-go"
+	heartbeattypes "github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat/types"
 	"github.com/tuvistavie/securerandom"
 )
 
@@ -26,6 +27,7 @@ type ConnectionState struct {
 	ID                string
 	RowCount          int64
 	PreparedStatement *PreparedStatement
+	CurrentQuery      *heartbeattypes.CurrentQuery
 }
 
 func NewConnectionState() (*ConnectionState, error) {

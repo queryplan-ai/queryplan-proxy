@@ -16,13 +16,13 @@ type QueryPlanQuery struct {
 	IsPreparedStatement bool   `json:"is_prepared_statement"`
 }
 
-type QueryPlanCurrentQuery struct {
-	ExecutionStartedAt  int64
-	Query               string
-	IsPreparedStatement bool
-}
-
 type QueryPlanQueriesPayload struct {
 	Queries []QueryPlanQuery `json:"queries"`
 	// Transactions []QueryPlanTransaction `json:"transactions"`
+}
+
+type CurrentQuery struct {
+	ExecutionStartedAt  int64
+	Query               string
+	IsPreparedStatement bool
 }
