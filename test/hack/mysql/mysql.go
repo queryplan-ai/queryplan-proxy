@@ -59,7 +59,7 @@ func main() {
 
 	// start 5 goroutines to execute queries concurrently, waiting for all to finish
 	wg := sync.WaitGroup{}
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go executeQuery(db, &wg)
 	}

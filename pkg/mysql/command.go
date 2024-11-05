@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
 )
 
 var (
@@ -17,18 +18,6 @@ var (
 	ErrNonQueryDataOrIncompletePacket = fmt.Errorf("non-query data or incomplete packet")
 	ErrUnknownPreparedStatement       = fmt.Errorf("unknown prepared statement")
 )
-
-type MysqlCommandPhase int
-
-const (
-	MysqlCommandReceivedNone              MysqlCommandPhase = 0
-	MysqlCommandReceivedQuery             MysqlCommandPhase = 1
-	MysqlCommandReceivedStatementPrepared MysqlCommandPhase = 2
-	MysqlCommandReceivedStatementExecuted MysqlCommandPhase = 3
-	MysqlCommandReceivedCloseStatement    MysqlCommandPhase = 4
-)
-
-var commandPhase = MysqlCommandReceivedNone
 
 const (
 	COM_QUIT             = 0x01
@@ -51,7 +40,7 @@ const (
 	COM_STMT_CLOSE       = 0x19
 )
 
-func copyAndInspectCommands(src, dst net.Conn, inspect bool) error {
+func copyAndInspectCommands(src, dst net.Conn, connectionState *types.ConnectionState, inspect bool) error {
 	buffer := make([]byte, 4096)
 	for {
 		n, err := src.Read(buffer)
@@ -64,15 +53,14 @@ func copyAndInspectCommands(src, dst net.Conn, inspect bool) error {
 
 		data := buffer[:n]
 		if inspect {
-			query, isPreparedStatement, err := extractQuery(data)
+			query, isPreparedStatement, err := extractQuery(data, connectionState)
 			if err == nil {
 				cleanedQuery, err := cleanQuery(query)
 				if err != nil {
 					log.Printf("Error cleaning query: %v", err)
 				} else {
 					if strings.ToLower(cleanedQuery) == "select connection_id ( ) as pid" {
-					} else {
-						resetState()
+
 					}
 					heartbeat.SetCurrentQuery(cleanedQuery, isPreparedStatement)
 				}
@@ -94,39 +82,38 @@ func copyAndInspectCommands(src, dst net.Conn, inspect bool) error {
 // extractQuery returns the query and an id we can use to map it later
 // the id is deterministic
 // the bool indicates if the query is a prepared statement
-func extractQuery(data []byte) (string, bool, error) {
+func extractQuery(data []byte, connectionState *types.ConnectionState) (string, bool, error) {
 	if len(data) < 5 {
 		return "", false, ErrNonQueryDataOrIncompletePacket
 	}
 
 	switch data[4] {
 	case COM_QUERY:
-		commandPhase = MysqlCommandReceivedQuery
+		connectionState.RowCount = 0
 		return strings.TrimSpace(string(data[5:])), false, nil
 	case COM_STMT_PREPARE:
-		commandPhase = MysqlCommandReceivedStatementPrepared
 		query := strings.TrimSpace(string(data[5:]))
-		preparedStatement = &PreparedStatement{
-			ID:    -1,
+		connectionState.PreparedStatement = &types.PreparedStatement{
 			Query: query,
+			ID:    -1,
 		}
+		connectionState.RowCount = 0
 		return "", false, ErrNonQueryData // really this should be after we find the statement in COM_STMT_EXECUTE
 	case COM_STMT_EXECUTE:
-		commandPhase = MysqlCommandReceivedStatementExecuted
 		// find the prepared statement with the same id, log that this query was executed
 		if len(data) < 9 {
 			return "", false, ErrNonQueryDataOrIncompletePacket
 		}
 		stmtID := binary.LittleEndian.Uint32(data[5:9])
-		if preparedStatement != nil && preparedStatement.ID == int(stmtID) {
-			return preparedStatement.Query, true, nil
+		if connectionState.PreparedStatement != nil && connectionState.PreparedStatement.ID == int(stmtID) {
+			connectionState.PreparedStatement.IsExecuted = true
+			return connectionState.PreparedStatement.Query, true, nil
 		}
 
-		fmt.Printf("Unknown prepared statement ID: %v\n", stmtID)
 		return "", false, ErrUnknownPreparedStatement
 
 	case COM_STMT_CLOSE:
-		commandPhase = MysqlCommandReceivedCloseStatement
+		connectionState.PreparedStatement = nil
 		return "", false, ErrNonQueryData
 
 	case COM_QUIT, COM_INIT_DB, COM_FIELD_LIST, COM_CREATE_DB,
@@ -136,6 +123,5 @@ func extractQuery(data []byte) (string, bool, error) {
 		return "", false, ErrNonQueryData
 	}
 
-	// fmt.Printf("Unknown command: %v\n", data[4])
 	return "", false, ErrNonQueryData
 }

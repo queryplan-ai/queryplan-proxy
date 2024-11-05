@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/queryplan-ai/queryplan-proxy/pkg/heartbeat"
+	"github.com/queryplan-ai/queryplan-proxy/pkg/mysql/types"
 )
 
 type MysqlPacketType byte
@@ -21,23 +22,10 @@ const (
 	MysqlPacketTypeComFieldList      = 0x04
 )
 
-type PreparedStatement struct {
-	ID    int
-	Query string
-}
-
-var (
-	preparedStatement *PreparedStatement
-)
-
-var rowCount = int64(0)
-
-var lastPacketType byte = MysqlPacketTypeUnknown
-
 // copyAndInspectResponse copies data from src to dst and parses the MySQL response
 // mysql keeps the connection alive though, so the scope of this function
 // is likely > 1 query
-func copyAndInspectResponses(src, dst net.Conn, inspect bool) error {
+func copyAndInspectResponses(src, dst net.Conn, connectionState *types.ConnectionState, inspect bool) error {
 	var accum bytes.Buffer
 	buf := make([]byte, 8192)
 
@@ -69,7 +57,7 @@ func copyAndInspectResponses(src, dst net.Conn, inspect bool) error {
 			}
 
 			// process this packet
-			if err := parseFullResponsePacket(dataToForward); err != nil {
+			if err := parseFullResponsePacket(dataToForward, connectionState); err != nil {
 				return err
 			}
 
@@ -94,54 +82,41 @@ func parseNextPacket(data []byte) (length int, ok bool) {
 	return 0, false
 }
 
-func parseFullResponsePacket(data []byte) error {
+func parseFullResponsePacket(data []byte, connectionState *types.ConnectionState) error {
 	payloadStartIndex := 4
 	packetType := data[payloadStartIndex]
-
-	if packetType == MysqlPacketTypeOKPacket && len(data) >= 9 && preparedStatement != nil {
-		// This could be a prepared statement response
-		stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
-		preparedStatement.ID = int(stmtID)
-
-		return nil
-
-	}
 
 	switch packetType {
 	case MysqlPacketTypeOKPacket:
 		if len(data) >= 9 {
-			// if preparedStatement != nil {
-			rowCount++
-			lastPacketType = packetType
-			return nil
-			// }
+			if connectionState.PreparedStatement != nil {
+				if !connectionState.PreparedStatement.IsExecuted {
+					stmtID := uint32(data[5]) | uint32(data[6])<<8 | uint32(data[7])<<16 | uint32(data[8])<<24
+					connectionState.PreparedStatement.ID = int(stmtID)
+				} else if connectionState.PreparedStatement.IsExecuted {
+					connectionState.RowCount++
+					return nil
+				}
+			}
 		}
-
-	case MysqlPacketTypeColumnDefinition:
-		lastPacketType = packetType
 
 	case MysqlPacketTypeEOFPacket:
-		if lastPacketType == MysqlPacketTypeOKPacket {
-			heartbeat.CompleteCurrentQuery(rowCount)
-			rowCount = 0
+		if connectionState.PreparedStatement != nil {
+			if connectionState.PreparedStatement.IsExecuted {
+				connectionState.PreparedStatement.CountEOFReceived++
+				if connectionState.PreparedStatement.CountEOFReceived == 2 {
+					heartbeat.CompleteCurrentQuery(connectionState.RowCount)
+				}
+			}
 		}
-		lastPacketType = packetType
+		connectionState.RowCount = 0
 
-	case MysqlPacketTypeHandshake, MysqlPacketTypeHandshakeResponse:
-		lastPacketType = packetType
-
-	case MysqlPacketTypeComFieldList:
-		lastPacketType = packetType
+	case MysqlPacketTypeColumnDefinition, MysqlPacketTypeHandshake, MysqlPacketTypeHandshakeResponse, MysqlPacketTypeComFieldList:
+		break
 
 	default:
-		lastPacketType = packetType
-		rowCount++
+		connectionState.RowCount++
 	}
-	return nil
-}
 
-func resetState() {
-	preparedStatement = nil
-	rowCount = 0
-	commandPhase = MysqlCommandReceivedNone
+	return nil
 }
