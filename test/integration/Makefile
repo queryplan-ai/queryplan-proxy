@@ -7,3 +7,7 @@ build:
 .PNONY: postgres
 postgres: build
 	./bin/integration-test postgres
+
+.PHONY: mysql
+mysql: build
+	./bin/integration-test mysql

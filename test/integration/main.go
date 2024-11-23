@@ -28,9 +28,9 @@ func rootCmd() *cobra.Command {
 	cobra.OnInitialize(initConfig)
 
 	cmd.AddCommand(PostgresCmd())
+	cmd.AddCommand(MysqlCmd())
 
 	cmd.PersistentFlags().String("log-level", "info", "log level")
-	cmd.PersistentFlags().String("proxy-binary", "../../bin/queryplan-proxy", "path to the proxy binary")
 
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 

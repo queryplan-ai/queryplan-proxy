@@ -94,4 +94,4 @@ release:
 
 .PHONY: test-integration
 test-integration: build
-	make -C test/integration postgres
+	make -C test/integration mysql

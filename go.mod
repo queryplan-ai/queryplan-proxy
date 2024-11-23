@@ -1,6 +1,8 @@
 module github.com/queryplan-ai/queryplan-proxy
 
-go 1.21.5
+go 1.22
+
+toolchain go1.23.0
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -9,9 +11,17 @@ require (
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
+	github.com/docker/docker v27.3.1+incompatible // indirect
+	github.com/docker/go-connections v0.5.0 // indirect
+	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -20,6 +30,10 @@ require (
 	github.com/jackc/pgx/v5 v5.5.5 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/moby v27.3.1+incompatible // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -34,6 +48,10 @@ require (
 	github.com/spf13/viper v1.18.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tuvistavie/securerandom v0.0.0-20140719024926-15512123a948 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.57.0 // indirect
+	go.opentelemetry.io/otel v1.32.0 // indirect
+	go.opentelemetry.io/otel/metric v1.32.0 // indirect
+	go.opentelemetry.io/otel/trace v1.32.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.17.0 // indirect
