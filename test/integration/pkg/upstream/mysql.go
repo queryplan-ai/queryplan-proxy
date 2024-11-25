@@ -16,7 +16,9 @@ import (
 )
 
 func StartMysql(logStdout bool, logStderr bool) (*UpsreamProcess, error) {
-	done := make(chan error)
+	stopAndDelete := make(chan struct{})
+	stoppedAndDeleted := make(chan error)
+
 	port := 3000 + rand.Intn(1000)
 	containerName := fmt.Sprintf("mysql-%d", port)
 	rootPassword := "rootpassword"
@@ -76,23 +78,27 @@ func StartMysql(logStdout bool, logStderr bool) (*UpsreamProcess, error) {
 	}
 
 	go func(containerID string) {
-		<-done
+		defer close(stoppedAndDeleted)
+
+		<-stopAndDelete
 
 		fmt.Printf("Stopping mysql container %s\n", containerID)
 		// stop the container so that it rm itself
 		if err := cli.ContainerStop(ctx, containerID, container.StopOptions{}); err != nil {
-			done <- fmt.Errorf("failed to stop mysql: %v", err)
+			stoppedAndDeleted <- fmt.Errorf("failed to stop mysql: %v", err)
 		}
 
 		if err := cli.ContainerRemove(ctx, containerID, container.RemoveOptions{}); err != nil {
-			done <- fmt.Errorf("failed to remove mysql: %v", err)
+			stoppedAndDeleted <- fmt.Errorf("failed to remove mysql: %v", err)
 		}
 
+		stoppedAndDeleted <- nil
 	}(containerResp.ID)
 
 	return &UpsreamProcess{
-		done:     done,
-		port:     port,
-		password: password,
+		stopAndDelete:     stopAndDelete,
+		stoppedAndDeleted: stoppedAndDeleted,
+		port:              port,
+		password:          password,
 	}, nil
 }
