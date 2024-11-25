@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func RootCmd() *cobra.Command {
+func RootCmd(signalChan *chan os.Signal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "queryplan-proxy",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -24,7 +24,7 @@ func RootCmd() *cobra.Command {
 	cobra.OnInitialize(initConfig)
 
 	cmd.AddCommand(VersionCmd())
-	cmd.AddCommand(StartCmd())
+	cmd.AddCommand(StartCmd(signalChan))
 
 	cmd.PersistentFlags().String("log-level", "info", "log level")
 
@@ -34,7 +34,7 @@ func RootCmd() *cobra.Command {
 }
 
 func InitAndExecute() {
-	if err := RootCmd().Execute(); err != nil {
+	if err := RootCmd(nil).Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

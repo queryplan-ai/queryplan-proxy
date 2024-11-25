@@ -24,3 +24,7 @@ func (p *UpsreamProcess) Stop() {
 func (p *UpsreamProcess) Port() int {
 	return p.port
 }
+
+func (p *UpsreamProcess) Password() string {
+	return p.password
+}

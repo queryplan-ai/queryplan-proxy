@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func StartCmd() *cobra.Command {
+func StartCmd(signalChan *chan os.Signal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "start",
 		SilenceUsage: true,
@@ -26,7 +26,11 @@ func StartCmd() *cobra.Command {
 			defer cancel()
 
 			sigs := make(chan os.Signal, 1)
-			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+			if signalChan != nil {
+				*signalChan = sigs
+			} else {
+				signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+			}
 
 			opts := daemontypes.DaemonOpts{
 				APIURL:      v.GetString("api-url"),
