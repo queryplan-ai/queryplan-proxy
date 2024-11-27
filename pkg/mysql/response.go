@@ -112,8 +112,9 @@ func parseFullResponsePacket(data []byte, connectionState *types.ConnectionState
 			}
 		}
 
-		if connectionState.ReceivedSimpleQuery && connectionState.EOFCount == 3 {
+		if connectionState.ReceivedSimpleQuery && connectionState.EOFCount == 2 {
 			heartbeat.CompleteCurrentQuery(connectionState.CurrentQuery, connectionState.RowCount)
+			connectionState.EOFCount = 0
 		}
 		connectionState.RowCount = 0
 

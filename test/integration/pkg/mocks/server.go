@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 type MockServer struct {
 	Port            int
 	Server          *http.Server
-	ReceivedQueries []string
+	ReceivedQueries []Query
 }
 
 func (m *MockServer) Stop() error {
@@ -26,7 +27,7 @@ func StartMockServer(port int) (*MockServer, error) {
 
 	mockServer := &MockServer{
 		Port:            port,
-		ReceivedQueries: []string{},
+		ReceivedQueries: []Query{},
 	}
 
 	handleRequest := func(w http.ResponseWriter, r *http.Request) {
@@ -41,13 +42,20 @@ func StartMockServer(port int) (*MockServer, error) {
 				return
 			}
 
-			fmt.Printf("Query: %s\n", string(body))
-			mockServer.ReceivedQueries = append(mockServer.ReceivedQueries, "query")
+			putBody := PutQueriesParametersBody{}
+			if err := json.Unmarshal(body, &putBody); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			for _, query := range putBody.Queries {
+				mockServer.ReceivedQueries = append(mockServer.ReceivedQueries, query)
+			}
+
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		fmt.Printf("Request: %s %s\n", r.Method, r.URL.Path)
 		w.WriteHeader(http.StatusNotFound)
 	}
 
@@ -58,4 +66,18 @@ func StartMockServer(port int) (*MockServer, error) {
 	go mockServer.Server.ListenAndServe()
 
 	return mockServer, nil
+}
+
+// the following types are copied from the queryplan api code
+
+type PutQueriesParametersBody struct {
+	Queries []Query `json:"queries"`
+}
+
+type Query struct {
+	ExecutedAt          int64  `json:"executed_at"`
+	Duration            int64  `json:"duration"`
+	RowCount            int64  `json:"row_count"`
+	Query               string `json:"query"`
+	IsPreparedStatement bool   `json:"is_prepared_statement"`
 }

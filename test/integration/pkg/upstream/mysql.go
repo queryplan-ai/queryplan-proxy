@@ -17,7 +17,7 @@ import (
 	"github.com/moby/moby/client"
 )
 
-func StartMysql(logStdout bool, logStderr bool) (*UpsreamProcess, error) {
+func StartMysql(logStdout bool, logStderr bool, schema []string, fixtures []string) (*UpsreamProcess, error) {
 	stopAndDelete := make(chan struct{})
 	stoppedAndDeleted := make(chan error)
 
@@ -92,6 +92,14 @@ func StartMysql(logStdout bool, logStderr bool) (*UpsreamProcess, error) {
 		return nil, fmt.Errorf("mysql container failed health check")
 	}
 
+	if err := applySchema(ctx, dsn, schema); err != nil {
+		return nil, err
+	}
+
+	if err := applyFixtures(ctx, dsn, fixtures); err != nil {
+		return nil, err
+	}
+
 	go func(containerID string) {
 		defer close(stoppedAndDeleted)
 
@@ -141,4 +149,39 @@ func waitForMySQL(ctx context.Context, dsn string) bool {
 			time.Sleep(1 * time.Second) // Wait before retrying
 		}
 	}
+}
+
+func applySchema(ctx context.Context, dsn string, schema []string) error {
+	mysqldb, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return err
+	}
+	defer mysqldb.Close()
+
+	for _, query := range schema {
+		_, err = mysqldb.Exec(query)
+		if err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("MySQL schema applied successfully.")
+	return nil
+}
+
+func applyFixtures(ctx context.Context, dsn string, fixtures []string) error {
+	mysqldb, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return err
+	}
+	defer mysqldb.Close()
+
+	for _, query := range fixtures {
+		_, err = mysqldb.Exec(query)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
