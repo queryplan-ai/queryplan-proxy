@@ -215,12 +215,14 @@ func executePreparedQueries() (*upstream.UpsreamProcess, error) {
 			},
 		},
 		{
-			Query: "select id from comments where id = ?",
+			Query: "select id, post_id, content from comments where id = ?",
 			Args: []interface{}{
 				1,
 			},
 			ScanArgs: []interface{}{
 				&sql.NullInt64{},
+				&sql.NullInt64{},
+				&sql.NullString{},
 			},
 		},
 		{

@@ -25,7 +25,7 @@ const (
 // copyAndInspectResponse copies data from src to dst and parses the MySQL response
 // mysql keeps the connection alive though, so the scope of this function
 // is likely > 1 query
-func copyAndInspectResponses(src, dst net.Conn, connectionState *types.ConnectionState, inspect bool) error {
+func copyAndInspectResponses(src, dst net.Conn, connectionState *types.ConnectionState) error {
 	var accum bytes.Buffer
 	buf := make([]byte, 8192)
 

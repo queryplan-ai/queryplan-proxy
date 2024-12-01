@@ -59,14 +59,14 @@ func handleMysqlConnection(localConn net.Conn, targetAddress string) {
 
 	go func() {
 		defer wg.Done()
-		if err := copyAndInspectCommands(localConn, targetConn, connectionState, true); err != nil {
+		if err := copyAndInspectCommands(localConn, targetConn, connectionState); err != nil {
 			log.Printf("Error in data transfer from local to target: %v", err)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		if err := copyAndInspectResponses(targetConn, localConn, connectionState, true); err != nil {
+		if err := copyAndInspectResponses(targetConn, localConn, connectionState); err != nil {
 			if errors.Is(err, io.EOF) {
 				// safe to ignore, the client went away
 				return
